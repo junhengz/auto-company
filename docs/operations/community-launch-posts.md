@@ -3,7 +3,7 @@
 > **Author**: operations-pg (Paul Graham model)
 > **Date**: 2026-02-12
 > **Purpose**: Cold-start community launch drafts with interaction playbook
-> **Product URL**: https://cronpulse.2214962083.workers.dev (Early Preview -- soft launch on workers.dev)
+> **Product URL**: https://cron-pulse.com (Early Preview -- soft launch on workers.dev)
 
 ---
 
@@ -50,7 +50,7 @@ https://github.com/nicepkg/cronpulse
 Email alerts are coming soon -- webhook and Slack alerts work now.
 
 How it works:
-  curl -fsS https://cronpulse.2214962083.workers.dev/ping/YOUR_CHECK_ID
+  curl -fsS https://cron-pulse.com/ping/YOUR_CHECK_ID
 
 Add that to the end of any cron script. If CronPulse does not hear from it within
 the expected window + grace period, it sends you an alert (Slack or webhook;
@@ -79,7 +79,7 @@ Would appreciate feedback on:
 - Any critical features you consider missing for a v1?
 - What features would you want in a v2?
 
-https://cronpulse.2214962083.workers.dev
+https://cron-pulse.com?utm_source=hackernews&utm_medium=social&utm_campaign=launch-2026-02
 ```
 
 ### Why This Works for HN
@@ -145,7 +145,7 @@ when you need to see.
 So I built CronPulse. It runs on Cloudflare Workers -- 300+ edge nodes, no
 single server to fail. Setup is one curl:
 
-  curl -fsS https://cronpulse.2214962083.workers.dev/ping/YOUR_CHECK_ID
+  curl -fsS https://cron-pulse.com/ping/YOUR_CHECK_ID
 
 Add it to the end of your cron script. If the ping does not arrive on time,
 you get an alert (Slack or webhook; email alerts coming soon).
@@ -176,7 +176,7 @@ stack and takes 30 seconds to set up, CronPulse might be useful.
 What monitoring setup do you all use for your cron jobs? Curious how people
 here handle this.
 
-https://cronpulse.2214962083.workers.dev
+https://cron-pulse.com?utm_source=reddit-selfhosted&utm_medium=social&utm_campaign=launch-2026-02
 ```
 
 ### r/selfhosted Interaction Strategy
@@ -225,7 +225,7 @@ observability platform."
 
 Setup:
 
-  0 2 * * * /usr/local/bin/backup.sh && curl -fsS https://cronpulse.2214962083.workers.dev/ping/abc123
+  0 2 * * * /usr/local/bin/backup.sh && curl -fsS https://cron-pulse.com/ping/abc123
 
 If the ping does not arrive within the expected window + grace period,
 CronPulse sends an alert via email, Slack, or webhook.
@@ -263,7 +263,7 @@ What is your current approach for monitoring cron jobs? I know some teams
 use Prometheus pushgateway, others use custom scripts. Curious what
 actually works in practice.
 
-https://cronpulse.2214962083.workers.dev
+https://cron-pulse.com?utm_source=reddit-devops&utm_medium=social&utm_campaign=launch-2026-02
 ```
 
 ### r/devops Interaction Strategy
@@ -351,7 +351,7 @@ The whole thing is open source (AGPL-3.0): https://github.com/nicepkg/cronpulse
 Would love feedback on the product, pricing, or the landing page.
 First time launching something publicly so I am sure there is stuff I am missing.
 
-https://cronpulse.2214962083.workers.dev
+https://cron-pulse.com?utm_source=reddit-sideproject&utm_medium=social&utm_campaign=launch-2026-02
 ```
 
 ### r/SideProject Interaction Strategy
@@ -508,7 +508,7 @@ Out of curiosity, how many of your cron jobs use non-standard schedules
 
 Did any new user create a check AND send at least one real ping?
 
-That is the activation metric. Not signups. Not page views. Someone who added `curl cronpulse.2214962083.workers.dev/ping/...` to an actual cron job on a real server. That person has integrated your product into their workflow. That is product-market fit signal.
+That is the activation metric. Not signups. Not page views. Someone who added `curl cron-pulse.com/ping/...` to an actual cron job on a real server. That person has integrated your product into their workflow. That is product-market fit signal.
 
 If you get 5 activated users from this launch, it is a success. Everything else is vanity.
 
@@ -523,4 +523,4 @@ If you get 5 activated users from this launch, it is a success. Everything else 
 > **Document**: `docs/operations/community-launch-posts.md`
 > **Version**: v1.0
 > **Related**: `docs/marketing/ph-listing.md`, `docs/marketing/ph-launch-checklist.md`
-> **Next Action**: Execute soft launch on workers.dev URL, then migrate to cronpulse.dev when ready
+> **Next Action**: Execute soft launch on workers.dev URL, then migrate to cron-pulse.com when ready

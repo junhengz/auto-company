@@ -34,7 +34,7 @@ Cloudflare Workers pricing is usage-based. Here's my actual cost breakdown:
 | Item | Monthly Cost |
 |------|-------------|
 | Workers Paid Plan (compute + routing) | $5.00 |
-| Domain (cronpulse.dev via Cloudflare Registrar) | ~$0.92 |
+| Domain (cron-pulse.com via Cloudflare Registrar) | ~$0.92 |
 | D1 database (SQLite at the edge) | $0 (included) |
 | KV cache | $0 (included) |
 | Cron Triggers (overdue checking every minute) | $0 (included) |
@@ -73,7 +73,7 @@ I specifically avoided per-monitor pricing (like Cronitor's $2/monitor) because 
 
 This is the part I'm most opinionated about. Here's what CronPulse does not have:
 
-- **No SDK.** Your integration is `curl -fsS https://cronpulse.2214962083.workers.dev/ping/YOUR_ID`. That's it. One line at the end of your cron script.
+- **No SDK.** Your integration is `curl -fsS https://cron-pulse.com/ping/YOUR_ID`. That's it. One line at the end of your cron script.
 - **No team management.** This is a tool for individual developers and small teams. Multi-seat RBAC is scope creep for a v1.
 - **No cron expression parser.** You set an expected interval and a grace period. Simpler to understand, simpler to configure.
 - **No mobile app.** You get alerts via email, Slack, or webhook. If it's urgent, it'll find you.
@@ -115,7 +115,7 @@ I'd appreciate honest answers on any of these:
 3. **Would you trust a monitoring service running on someone else's platform (Cloudflare)?** The upside is zero ops on my end. The downside is platform dependency. How much does that matter to you?
 4. **What's the one feature that would make you switch from whatever you're using now?**
 
-Here's the product: https://cronpulse.2214962083.workers.dev
+Here's the product: https://cron-pulse.com?utm_source=indiehackers&utm_medium=social&utm_campaign=launch-2026-02
 
 Thanks for reading. Happy to answer anything about the tech stack, the business model, or the build process.
 

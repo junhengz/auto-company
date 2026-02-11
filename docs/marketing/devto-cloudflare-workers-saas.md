@@ -32,7 +32,7 @@ Here's the high-level flow:
 ```
 Your cron job
   |
-  curl https://cronpulse.dev/ping/YOUR_CHECK_ID
+  curl https://cron-pulse.com/ping/YOUR_CHECK_ID
   |
   Cloudflare Workers (nearest edge, ~5ms response)
   |
@@ -52,7 +52,7 @@ Cron Trigger (every 1 minute)
 
 ## The Ping Endpoint: Respond First, Process Later
 
-The most critical piece is the ping endpoint. When your cron job calls `curl https://cronpulse.dev/ping/abc123`, it needs to get a response *fast*. If the monitoring service itself is slow, it becomes a liability in your cron job pipeline.
+The most critical piece is the ping endpoint. When your cron job calls `curl https://cron-pulse.com/ping/abc123`, it needs to get a response *fast*. If the monitoring service itself is slow, it becomes a liability in your cron job pipeline.
 
 Here's the actual implementation:
 
@@ -382,9 +382,9 @@ In practice, this hasn't been a real problem because there's always a delay betw
 
 CronPulse is in early preview. The core monitoring works. You can try it right now:
 
-1. Sign up at [cronpulse.2214962083.workers.dev](https://cronpulse.2214962083.workers.dev)
+1. Sign up at [cron-pulse.com](https://cron-pulse.com?utm_source=devto&utm_medium=social&utm_campaign=launch-2026-02)
 2. Create a check
-3. Add `curl -fsS https://cronpulse.2214962083.workers.dev/ping/YOUR_CHECK_ID` to your cron job
+3. Add `curl -fsS https://cron-pulse.com/ping/YOUR_CHECK_ID` to your cron job
 4. See what happens when you stop it
 
 Free tier: 10 checks, no credit card.
