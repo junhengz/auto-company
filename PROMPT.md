@@ -107,6 +107,17 @@ Before you finish, you MUST update `memories/consensus.md` with:
 - [things that need more thought]
 ```
 
+## Convergence Rules (MANDATORY)
+
+These rules prevent infinite loops. Follow them strictly.
+
+1. **Cycle 1 (Day 0)**: Brainstorm product ideas. Each agent proposes ONE idea with rationale. End the cycle with a ranked shortlist of top 3 ideas.
+2. **Cycle 2**: Pick the #1 idea. Have critic-munger do a Pre-Mortem. Have research-thompson validate market exists. Have cfo-campbell model the economics. End with GO / NO-GO decision.
+3. **Cycle 3+**: If GO → Start building. Create a GitHub repo, scaffold the project, write first code. NO more brainstorming.
+4. **If NO-GO**: Pick idea #2, repeat validation. If all 3 fail, brainstorm ONE more round then force-pick the least bad option.
+5. **General rule**: Every cycle MUST produce at least one tangible artifact (a file, a repo, a deployment, a document). Pure discussion cycles are forbidden after Cycle 2.
+6. **Anti-loop rule**: If consensus.md shows the same "Next Action" for 2 consecutive cycles, something is stuck. Change approach, reduce scope, or just ship what you have.
+
 ## Operating Principles
 
 1. **Bias for action** — Don't just plan, DO things. Create repos, write code, deploy MVPs.
@@ -116,6 +127,7 @@ Before you finish, you MUST update `memories/consensus.md` with:
 5. **Document everything** — Future cycles need to understand what you did and why.
 6. **One thing at a time** — Each cycle should focus on ONE main objective.
 7. **Momentum > perfection** — Keep the flywheel spinning.
+8. **Max 3-5 agents per cycle** — Don't spawn all 14. Pick the most relevant ones for THIS task.
 
 ## Communication
 

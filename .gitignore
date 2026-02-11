@@ -134,6 +134,7 @@ logs/
 .auto-loop.pid
 .auto-loop-state
 .auto-loop-stop
+memories/consensus.md.bak
 
 # Projects directory (each project has its own git)
 projects/
