@@ -2,6 +2,7 @@
 
 > **Author**: operations-pg (Paul Graham model)
 > **Date**: 2026-02-12
+> **Updated**: Cycle 28 — all posts reflect current product state
 > **Purpose**: Cold-start community launch drafts with interaction playbook
 > **Product URL**: https://cron-pulse.com (v1.0.0 released)
 
@@ -322,10 +323,9 @@ Tech stack:
 - KV (key-value cache -- included with Workers)
 - Cron Triggers (scheduled tasks -- included with Workers)
 - Hono (web framework -- open source, free)
+- Resend (email delivery)
 
-Total monthly infrastructure cost: currently $0 (free tier) during early
-preview. Even on the paid Workers plan, projected cost is ~$6/month.
-
+Total monthly infrastructure cost: ~$6/month on the Workers paid plan.
 That covers the entire product: API, dashboard, landing page, blog,
 and cron monitoring engine.
 
@@ -336,27 +336,32 @@ against $6/mo cost. Ramen profitable at 10 customers.
 
 Things I learned building this:
 1. Cloudflare Workers + D1 is ridiculously cheap for a SaaS MVP
-2. SSR with Hono JSX is faster to build than a React SPA for CRUD dashboards
+2. SSR with Hono is faster to build than a React SPA for CRUD dashboards
 3. Magic Link auth (email login, no passwords) took half a day to implement
-4. Magic Link auth works via direct link display during preview (email delivery coming next)
-5. The hardest part was not the code -- it was deciding what NOT to build
+4. The hardest part was not the code -- it was deciding what NOT to build
+
+What I built:
+- One-line monitoring: `curl -fsS https://cron-pulse.com/ping/YOUR_ID`
+- Start/Success/Fail signals -- track job duration, catch jobs that start but never finish
+- Cron expression parsing (`0 2 * * *` auto-calculates intervals)
+- CLI tool (`npx cron-pulse-cli init "Backup" --every 1h`)
+- GitHub Action for CI/CD monitoring
+- Email alerts (Resend), Slack (Block Kit), Webhooks (HMAC signed)
+- Status badges for READMEs
+- Public status pages with custom branding
+- Check groups, tags, incident timeline, maintenance windows
+- REST API, import/export
 
 What I deliberately did not build:
+- No SDK (just curl)
 - No team management (yet)
-- No SDK (just curl -- and now a CLI)
 - No mobile app
 - No AI anything
 
 Every feature I skipped was a feature I wanted to build. But shipping > perfecting.
 
-What I did build after launch based on feedback:
-- Cron expression parsing (`0 2 * * *` auto-calculates intervals)
-- CLI tool (`npx cron-pulse-cli init "Backup" --every 1h`)
-- GitHub Action for CI/CD monitoring
-- Status badges for READMEs
-- Public status pages
-
-The whole thing is open source (AGPL-3.0): https://github.com/nicepkg/cronpulse
+The whole thing is open source (AGPL-3.0 server, MIT CLI + GitHub Action):
+https://github.com/nicepkg/cronpulse
 
 Would love feedback on the product, pricing, or the landing page.
 First time launching something publicly so I am sure there is stuff I am missing.
@@ -371,7 +376,7 @@ https://cron-pulse.com?utm_source=reddit-sideproject&utm_medium=social&utm_campa
 | Expected Comment | Response Approach |
 |-----------------|-------------------|
 | "How are you going to get users?" | Honest answer: this post is part of it. Also: HN Show HN, Product Hunt, SEO blog content (already have 3 posts ranking for cron monitoring keywords), and direct outreach in dev communities. No paid ads yet. |
-| "How long did it take to build?" | About 2 weeks from first line of code to production deployment. Could have been faster if I had not spent time on the blog and SEO infrastructure. |
+| "How long did it take to build?" | About 2 weeks from first line of code to production deployment. Then several more weeks iterating on features like CLI, GitHub Action, status pages, and cron expression parsing. |
 | "Is Cloudflare Workers good for SaaS?" | For this type of product, yes. The free tier is generous (100K requests/day), D1 is free up to 50M row writes/month, and the deployment is one command. For anything needing heavy computation or large file storage, probably not. |
 | "Your pricing is too low" | Maybe. I would rather start low and raise prices than start high and get no users. The first 100 users are about learning, not revenue. Also, the margins are real -- $5/mo against pennies of infra cost. |
 | "Have you validated demand?" | Partially. The problem is well-known (cron jobs fail silently). The market exists (Healthchecks.io, Cronitor are profitable). My bet is on the price/simplicity combination being underserved. Real validation starts when strangers pay. |
@@ -441,18 +446,21 @@ Reasons:
 
 Before posting ANY of these:
 
-- [ ] Landing page is live and loads fast (test on mobile)
-- [ ] Sign-up flow works end-to-end (magic link displayed directly during preview)
-- [ ] Creating a check and getting a ping URL works
-- [ ] Sending a test ping and seeing it in the dashboard works
-- [ ] At least one alert channel works (webhook and Slack confirmed)
-- [ ] Pricing page is accurate
-- [ ] Blog posts are live (gives the site depth -- not just a landing page)
-- [ ] API docs page exists (even if basic)
-- [ ] You have tested the product yourself with 3-5 real cron jobs for at least 48 hours
-- [x] Demo mode login works (magic link shown directly)
+- [x] Landing page is live and loads fast (test on mobile)
+- [x] Sign-up flow works end-to-end (magic link email via Resend)
+- [x] Creating a check and getting a ping URL works
+- [x] Sending a test ping and seeing it in the dashboard works
+- [x] All alert channels work (email, Slack, webhook)
+- [x] Pricing page is accurate
+- [x] Blog posts are live (3 SEO articles)
+- [x] API docs page exists
+- [x] Demo mode login works
+- [x] CLI tool available (`npx cron-pulse-cli`)
+- [x] GitHub Action available
+- [ ] npm publish CLI (needs human `npm login`)
+- [ ] Test the product yourself with 3-5 real cron jobs for at least 48 hours
 
-**Launch status**: Product is live at cron-pulse.com with custom domain, v1.0.0 released on GitHub. All features (email, Slack, webhook alerts, CLI, GitHub Action) are production-ready.
+**Launch status**: Product is production-ready at cron-pulse.com. All features live. CLI pending npm publish. GitHub Action available via repo reference.
 
 ---
 
@@ -483,11 +491,8 @@ When someone gives constructive feedback, use this pattern:
 
 Example:
 ```
-"Thanks for this. The lack of cron expression parsing is a real gap --
-interval-based scheduling works for most cases but is less precise for
-things like 'every weekday at 2am.' It is on the roadmap for next month.
-Out of curiosity, how many of your cron jobs use non-standard schedules
-(beyond simple intervals)?"
+"Thanks for this. [Specific acknowledgment]. [Current thinking].
+[What you might do about it]. [Follow-up question]."
 ```
 
 ### What NOT to Do

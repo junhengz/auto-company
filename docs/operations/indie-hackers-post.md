@@ -4,6 +4,7 @@
 > **Date**: 2026-02-12
 > **Platform**: Indie Hackers
 > **Purpose**: Build-in-public post to collect feedback and find early users
+> **Updated**: Cycle 28 — reflects current product state
 
 ---
 
@@ -69,42 +70,49 @@ The jump to $15 for 200 checks catches teams that outgrow the starter plan. And 
 
 I specifically avoided per-monitor pricing (like Cronitor's $2/monitor) because it creates anxiety. "Do I really need this check? Is it worth $2/month?" I don't want users thinking about that. Flat tiers, simple math.
 
+### What's in the box
+
+CronPulse is a lot more than just a ping endpoint now:
+
+- **One-line integration** — `curl -fsS https://cron-pulse.com/ping/YOUR_ID`. That's the entire setup.
+- **Start/Success/Fail signals** — Track job duration, not just completion. Know when a job started but never finished.
+- **Cron expression parsing** — Paste `0 2 * * *` and it auto-calculates the expected interval.
+- **CLI tool** — `npx cron-pulse-cli init "Backup" --every 1h` creates a check and outputs a ready-to-use crontab line.
+- **GitHub Action** — Monitor CI/CD scheduled workflows with one YAML step.
+- **Email, Slack, Webhook alerts** — Email via Resend (HTML templates), Slack with Block Kit, webhooks with HMAC signing.
+- **Status badges** — Embed live status SVGs in your README.
+- **Public status pages** — Share uptime with your users, grouped by service.
+- **Check groups and tags** — Organize hundreds of checks.
+- **Incident timeline** — Full history of downs and recoveries.
+- **Maintenance windows** — Suppress alerts during planned downtime (recurring supported).
+- **REST API** — Manage everything programmatically.
+- **Import/Export** — Backup your config as JSON.
+
 ### What I deliberately did NOT build
 
-This is the part I'm most opinionated about. Here's what CronPulse does not have:
+- **No SDK.** Just curl. The simplest possible integration.
+- **No team management (yet).** This is a tool for individual developers and small teams.
+- **No mobile app.** Alerts find you via email/Slack/webhook.
+- **No AI anything.** "AI-powered cron monitoring" is a solution looking for a problem.
 
-- **No SDK.** Your integration is `curl -fsS https://cron-pulse.com/ping/YOUR_ID`. That's it. One line at the end of your cron script.
-- **No team management.** This is a tool for individual developers and small teams. Multi-seat RBAC is scope creep for a v1.
-- **No cron expression parser.** You set an expected interval and a grace period. Simpler to understand, simpler to configure.
-- **No mobile app.** You get alerts via email, Slack, or webhook. If it's urgent, it'll find you.
-- **No AI.** I have nothing against AI, but "AI-powered cron monitoring" is a solution looking for a problem.
-
-Every feature I skipped was a feature I wanted to build. Shipping the MVP in 2 weeks meant being ruthless about scope. The hardest engineering decision wasn't what to build -- it was what to leave out.
+Every feature I skipped was a feature I wanted to build. Shipping meant being ruthless about scope.
 
 ### Current status: honest numbers
 
 - **Revenue**: $0
 - **Users**: 0
-- **Stage**: Early preview (live and functional on a workers.dev subdomain)
+- **Stage**: Production (live at cron-pulse.com with custom domain)
 - **Time to build**: ~2 weeks from first line of code to production
 - **Infrastructure cost**: ~$6/month
-- **Notification channels**: Webhook and Slack work now. Email alerts coming soon.
+- **Notification channels**: Email (Resend), Slack (Block Kit), Webhooks (HMAC signed)
 
-I'm not going to pretend this is further along than it is. The product works. You can sign up, create checks, send pings, and receive alerts. But it's early, and I'm posting here because I genuinely want feedback before investing in a custom domain and a proper launch.
+I'm not going to pretend this is further along than it is. The product works and is feature-complete for a v1. You can sign up, create checks, send pings, and receive alerts. But I have zero users, and I'm posting here because I genuinely want feedback.
 
 ### Open source
 
 The entire codebase is open source under AGPL-3.0: https://github.com/nicepkg/cronpulse
 
-You can read every line, self-host on your own Cloudflare account, or contribute. I've tagged a few Good First Issues for anyone interested.
-
-### What's next
-
-1. Email alerts (Resend integration in progress)
-2. Custom domain
-3. Product Hunt launch once I have at least a few real users and their feedback
-4. SEO content (3 blog posts already live)
-5. Iterate based on whatever feedback I get from this post
+You can read every line, self-host on your own Cloudflare account, or contribute. I've tagged Good First Issues for anyone interested. The CLI and GitHub Action are MIT licensed.
 
 ### Questions for this community
 
@@ -164,5 +172,5 @@ Thanks for reading. Happy to answer anything about the tech stack, the business 
 ---
 
 > **Document**: `docs/operations/indie-hackers-post.md`
-> **Version**: v1.0
+> **Version**: v2.0 (Cycle 28 — updated to reflect current product state)
 > **Related**: `docs/operations/community-launch-posts.md` (HN + Reddit posts)
