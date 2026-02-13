@@ -9,7 +9,11 @@ set -euo pipefail
 #
 # Requires:
 # - gh CLI authenticated
-# - permission to read/set repo Actions variables and read repo secrets list
+# - permission to dispatch workflows
+#
+# Notes:
+# - If your token cannot list Actions secrets/variables (e.g., HTTP 403), this script will warn and
+#   continue. The GitHub Actions workflow itself has clear fail-fast messages for missing inputs.
 
 usage() {
   cat >&2 <<'EOF'
@@ -22,6 +26,7 @@ Flags:
   --candidates-file PATH       Read candidates from file (one per line; comments allowed)
   --set-variable               Write candidates into repo variable HOSTED_WORKFLOW_BASE_URL_CANDIDATES
   --base-url "u1 u2 ..."       Pass candidates directly to workflow_dispatch input base_url (does not persist)
+  --autodiscover-hosting       If no candidates are provided and no repo variable exists, attempt best-effort discovery from hosting provider APIs (Vercel/Cloudflare) using local env vars
   --run-id RUN_ID              Explicit run id (default: workflow generates)
   --skip-sql-apply true|false  (default: true)
   --sql-bundle PATH            (default: projects/security-questionnaire-autopilot/supabase/bundles/20260213_cycle003_hosted_workflow_migration_plus_seed.sql)
@@ -49,6 +54,7 @@ REQUIRE_FALLBACK_SECRETS="0"
 LOCAL_PROBE="1"
 SEED_RUN_ID="pilot-001-live-2026-02-13"
 LOCAL_SMOKE="1"
+AUTO_DISCOVER_HOSTING="0"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -57,6 +63,7 @@ while [ "$#" -gt 0 ]; do
     --candidates-file) CANDIDATES_FILE="${2:-}"; shift 2 ;;
     --set-variable) SET_VARIABLE="1"; shift 1 ;;
     --base-url) BASE_URL_INPUT="${2:-}"; shift 2 ;;
+    --autodiscover-hosting) AUTO_DISCOVER_HOSTING="1"; shift 1 ;;
     --run-id) RUN_ID="${2:-}"; shift 2 ;;
     --skip-sql-apply) SKIP_SQL_APPLY="${2:-}"; shift 2 ;;
     --sql-bundle) SQL_BUNDLE="${2:-}"; shift 2 ;;
@@ -78,6 +85,79 @@ require_bin() {
 
 require_bin "gh"
 
+print_hosted_env_guidance() {
+  local base="${1:-}"
+  local root helper
+
+  root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+  helper="$root/projects/security-questionnaire-autopilot/scripts/print-hosted-supabase-env-setup-help.sh"
+  if [ -x "$helper" ]; then
+    "$helper" "$base" || true
+    return 0
+  fi
+
+  cat >&2 <<'EOF'
+
+Fix hosted runtime env vars (most common blocker):
+  The Cycle 005 runner selects a deployed Next.js *workflow API* runtime by probing:
+    GET <BASE_URL>/api/workflow/env-health
+  For evidence runs, env-health must show:
+    env.NEXT_PUBLIC_SUPABASE_URL=true
+    env.SUPABASE_SERVICE_ROLE_KEY=true
+
+  Where to set these (hosted runtime, not GitHub Actions):
+    - Vercel: Project -> Settings -> Environment Variables
+      Set for the correct environment (Production at minimum), then redeploy.
+    - Cloudflare Pages: Project -> Settings -> Environment variables
+      Set for Production, then trigger a new deployment.
+
+  GitHub Actions secrets are separate:
+    - NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY secrets are only used for the
+      fallback "direct PostgREST evidence fetch" path. They do NOT configure your hosted runtime.
+
+Verify after redeploy:
+  curl -sS "<BASE_URL>/api/workflow/env-health" | jq .
+
+	Docs:
+	  - docs/qa/cycle-005-hosted-persistence-evidence-preflight.md
+	  - docs/devops/cycle-005-hosted-runtime-env-vars.md
+	  - docs/operations/cycle-005-hosted-runtime-env-vars.md
+	  - docs/devops/base-url-discovery.md
+	  - docs/devops/cycle-005-gha-base-url-and-secrets-runbook.md
+EOF
+}
+
+require_hosted_supabase_env_or_fail() {
+  # Fail with actionable instructions if the deployed runtime is reachable but missing env vars.
+  # Args: base_url (origin)
+  local base="${1:-}"
+  local tmp code has_url has_service
+
+  if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+    return 0
+  fi
+
+  tmp="$(mktemp)"
+  code="$(curl -sS -m 12 -o "$tmp" -w "%{http_code}" "${base%/}/api/workflow/env-health" || echo "000")"
+  if [ "$code" != "200" ] || ! jq -e '.ok == true' "$tmp" >/dev/null 2>&1; then
+    rm -f "$tmp" 2>/dev/null || true
+    return 0
+  fi
+
+  has_url="$(jq -r '.env.NEXT_PUBLIC_SUPABASE_URL // false' "$tmp" 2>/dev/null || echo "false")"
+  has_service="$(jq -r '.env.SUPABASE_SERVICE_ROLE_KEY // false' "$tmp" 2>/dev/null || echo "false")"
+  if [ "$has_url" != "true" ] || [ "$has_service" != "true" ]; then
+    echo "Hosted runtime is reachable but missing required Supabase env vars at: ${base%/}" >&2
+    echo "env-health response:" >&2
+    jq . "$tmp" >&2 || cat "$tmp" >&2 || true
+    rm -f "$tmp" 2>/dev/null || true
+    print_hosted_env_guidance "$base"
+    exit 2
+  fi
+
+  rm -f "$tmp" 2>/dev/null || true
+}
+
 gh auth status -h github.com >/dev/null
 
 if [ -z "${REPO:-}" ]; then
@@ -91,6 +171,7 @@ fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 FORMAT="$ROOT/projects/security-questionnaire-autopilot/scripts/format-base-url-candidates.sh"
 DISCOVER="$ROOT/projects/security-questionnaire-autopilot/scripts/discover-hosted-base-url.sh"
+COLLECT_HOSTING="$ROOT/projects/security-questionnaire-autopilot/scripts/collect-base-url-candidates-from-hosting.sh"
 
 if [ -n "${CANDIDATES_FILE:-}" ]; then
   if [ ! -f "$CANDIDATES_FILE" ]; then
@@ -105,16 +186,45 @@ if [ "${SET_VARIABLE}" = "1" ]; then
     echo "--set-variable requires --candidates or --candidates-file" >&2
     exit 2
   fi
-  gh variable set HOSTED_WORKFLOW_BASE_URL_CANDIDATES -R "$REPO" --body "$CANDIDATES" >/dev/null
+  if ! gh variable set HOSTED_WORKFLOW_BASE_URL_CANDIDATES -R "$REPO" --body "$CANDIDATES" >/dev/null; then
+    echo "Failed to set repo variable HOSTED_WORKFLOW_BASE_URL_CANDIDATES (missing GitHub Actions Variables permission?)." >&2
+    exit 2
+  fi
 fi
 
 get_var_value() {
   local name="$1"
-  gh api "repos/${REPO}/actions/variables/${name}" -q '.value' 2>/dev/null || true
+  local out rc
+  out="$(gh api "repos/${REPO}/actions/variables/${name}" -q '.value' 2>&1)"
+  rc="$?"
+  if [ "$rc" != "0" ]; then
+    if printf '%s' "$out" | grep -q "HTTP 403"; then
+      CAN_READ_VARS="0"
+    fi
+    printf '%s' ""
+    return 0
+  fi
+  printf '%s' "$out"
 }
+
+CAN_LIST_SECRETS="1"
+CAN_READ_VARS="1"
+
+if ! gh secret list -R "$REPO" --app actions >/dev/null 2>&1; then
+  CAN_LIST_SECRETS="0"
+  echo "Warning: insufficient permissions to list repo secrets via gh; skipping local secret presence checks (CI will enforce)." >&2
+fi
+
+if ! gh variable list -R "$REPO" >/dev/null 2>&1; then
+  CAN_READ_VARS="0"
+  echo "Warning: insufficient permissions to read repo variables via gh; skipping local variable reads (pass --base-url/--candidates or CI vars must be set)." >&2
+fi
 
 have_secret() {
   local name="$1"
+  if [ "${CAN_LIST_SECRETS}" != "1" ]; then
+    return 0
+  fi
   gh secret list -R "$REPO" --app actions --json name -q \
     ".[] | select(.name==\"$name\") | .name" 2>/dev/null | head -n 1
 }
@@ -125,19 +235,23 @@ if [ "${SKIP_SQL_APPLY}" != "true" ] && [ "${SKIP_SQL_APPLY}" != "false" ]; then
 fi
 
 if [ "${SKIP_SQL_APPLY}" = "false" ]; then
-  if [ -z "$(have_secret "SUPABASE_DB_URL" || true)" ]; then
+  if [ "${CAN_LIST_SECRETS}" = "1" ] && [ -z "$(have_secret "SUPABASE_DB_URL" || true)" ]; then
     echo "Missing required secret: SUPABASE_DB_URL (required when --skip-sql-apply=false)" >&2
     exit 2
   fi
 fi
 
 if [ "${REQUIRE_FALLBACK_SECRETS}" = "1" ]; then
-  for s in NEXT_PUBLIC_SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
-    if [ -z "$(have_secret "$s" || true)" ]; then
-      echo "Missing required fallback secret: $s" >&2
-      exit 2
-    fi
-  done
+  if [ "${CAN_LIST_SECRETS}" = "1" ]; then
+    for s in NEXT_PUBLIC_SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+      if [ -z "$(have_secret "$s" || true)" ]; then
+        echo "Missing required fallback secret: $s" >&2
+        exit 2
+      fi
+    done
+  else
+    echo "Warning: cannot verify fallback secrets locally (no permission to list secrets); CI will enforce if require_fallback_supabase_secrets=true." >&2
+  fi
 fi
 
 BASE_URL_FIELD=""
@@ -153,6 +267,21 @@ else
   if [ -n "$v" ]; then
     BASE_URL_FIELD="$v"
     BASE_URL_SOURCE="repo variable HOSTED_WORKFLOW_BASE_URL_CANDIDATES"
+  elif [ "${CAN_READ_VARS}" != "1" ]; then
+    echo "Warning: cannot read repo variable HOSTED_WORKFLOW_BASE_URL_CANDIDATES locally (HTTP 403)." >&2
+    echo "Fix: pass --base-url or --candidates/--candidates-file, or grant Actions Variables permission." >&2
+  fi
+fi
+
+if [ -z "${BASE_URL_FIELD:-}" ] && [ "${AUTO_DISCOVER_HOSTING}" = "1" ]; then
+  if command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+    discovered="$("$COLLECT_HOSTING" | tr '\n' ' ' | tr -s ' ' | sed 's/^ *//; s/ *$//' || true)"
+    if [ -n "${discovered:-}" ]; then
+      BASE_URL_FIELD="$discovered"
+      BASE_URL_SOURCE="hosting API discovery (local env)"
+    fi
+  else
+    echo "Warning: --autodiscover-hosting requires curl + jq; skipping." >&2
   fi
 fi
 
@@ -164,21 +293,58 @@ if [ -z "${BASE_URL_FIELD:-}" ]; then
   echo "     gh variable set HOSTED_WORKFLOW_BASE_URL_CANDIDATES -R \"$REPO\" --body \"https://<candidate1> https://<candidate2>\"" >&2
   echo "  2) Or run this script with --base-url \"https://<candidate1> https://<candidate2>\"" >&2
   echo "  3) Or run this script with --candidates-file docs/devops/base-url-candidates.template.txt --set-variable" >&2
+  echo "  4) Or (optional) provide hosting API env vars and run with --autodiscover-hosting:" >&2
+  echo "     Vercel: VERCEL_TOKEN + (VERCEL_PROJECT_ID or VERCEL_PROJECT) [+ VERCEL_TEAM_ID/VERCEL_TEAM_SLUG]" >&2
+  echo "     Cloudflare Pages: CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID + CF_PAGES_PROJECT" >&2
+  echo "" >&2
+  echo "Where to get BASE_URL candidates:" >&2
+  echo "  - Vercel: your production deployment domain (e.g., https://<project>.vercel.app or your custom app domain)" >&2
+  echo "  - Cloudflare Pages: your pages.dev domain (e.g., https://<project>.pages.dev or your custom app domain)" >&2
+  echo "" >&2
+  echo "Docs:" >&2
+  echo "  - docs/qa/cycle-005-hosted-persistence-evidence-preflight.md" >&2
+  echo "  - docs/devops/base-url-discovery.md" >&2
   exit 2
 fi
 
 echo "BASE_URL candidates source: ${BASE_URL_SOURCE:-unknown}" >&2
 LOCAL_SELECTED_BASE_URL=""
 
-if [ "${LOCAL_PROBE}" = "1" ] && command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
-  if selected="$("$DISCOVER" "$BASE_URL_FIELD" 2>/dev/null)"; then
+if [ "${LOCAL_PROBE}" = "1" ]; then
+  require_bin "curl"
+  require_bin "jq"
+
+  PROBE="$ROOT/projects/security-questionnaire-autopilot/scripts/probe-hosted-base-url-candidates.sh"
+  echo "" >&2
+  echo "Local BASE_URL probe report (candidate -> /api/workflow/env-health):" >&2
+  # The probe script accepts a single space/comma-separated arg, so pass the candidates field directly.
+  "$PROBE" "$BASE_URL_FIELD" >&2 || true
+  echo "" >&2
+
+  tmp_err="$(mktemp)"
+  # Identify the correct runtime even if Supabase env vars are not yet configured,
+  # then fail with an actionable message if they're missing.
+  if selected="$(ALLOW_MISSING_SUPABASE_ENV=1 "$DISCOVER" "$BASE_URL_FIELD" 2>"$tmp_err")"; then
+    rm -f "$tmp_err" 2>/dev/null || true
     if [ -n "${selected:-}" ]; then
       echo "Locally selected BASE_URL: $selected" >&2
       BASE_URL_FIELD="$selected"
       LOCAL_SELECTED_BASE_URL="$selected"
+      require_hosted_supabase_env_or_fail "$LOCAL_SELECTED_BASE_URL"
+    else
+      echo "Local BASE_URL selection returned empty output (unexpected)." >&2
+      echo "Re-run with --no-local-probe to bypass local selection, or fix BASE_URL candidates." >&2
+      exit 2
     fi
   else
-    echo "Warning: local BASE_URL probe failed; proceeding with workflow-side discovery." >&2
+    echo "Local BASE_URL probe failed. Refusing to dispatch CI with an unknown/invalid BASE_URL." >&2
+    echo "" >&2
+    cat "$tmp_err" >&2 || true
+    rm -f "$tmp_err" 2>/dev/null || true
+    print_hosted_env_guidance
+    echo "" >&2
+    echo "If you cannot probe from this machine (network/VPN), re-run with: --no-local-probe" >&2
+    exit 2
   fi
 fi
 
@@ -191,6 +357,7 @@ if [ "${LOCAL_SMOKE}" = "1" ] && [ -n "${LOCAL_SELECTED_BASE_URL:-}" ] && [ "${S
     cat "$tmp" >&2 || true
     rm -f "$tmp"
     echo "Local smoke failed: supabase-health is not healthy. This CI run will fail too." >&2
+    echo "If this is a fresh environment, you may need to apply the Supabase SQL bundle first (or run CI with --skip-sql-apply=false and SUPABASE_DB_URL secret set)." >&2
     exit 2
   fi
   rm -f "$tmp"

@@ -83,6 +83,7 @@ fi
 if ! jq -e '.env.NEXT_PUBLIC_SUPABASE_URL == true and .env.SUPABASE_SERVICE_ROLE_KEY == true' "$ENV_HEALTH_OUT" >/dev/null 2>&1; then
   echo "Hosted runtime is missing required Supabase env vars. See: $ENV_HEALTH_OUT" >&2
   echo "Expected: NEXT_PUBLIC_SUPABASE_URL=true and SUPABASE_SERVICE_ROLE_KEY=true" >&2
+  "$PROJECT/scripts/print-hosted-supabase-env-setup-help.sh" "$BASE_URL" || true
   exit 2
 fi
 

@@ -24,6 +24,9 @@ Pre-PMF / early pilot: prioritize trustworthy hosted evidence over signup volume
 - Provider deployment URL is stale (Vercel `DEPLOYMENT_NOT_FOUND` or old preview domain).
 - Env vars are set in provider UI but deployment was not restarted/redeployed (env-health booleans stay `false`).
 
+Fast fix guide:
+- `docs/operations/cycle-005-hosted-runtime-env-vars.md`
+
 ## Collect 2-4 Candidate Domains (Do This First)
 
 From the hosting provider for the workflow app (Vercel / Cloudflare Pages / etc), copy 2-4 origins:

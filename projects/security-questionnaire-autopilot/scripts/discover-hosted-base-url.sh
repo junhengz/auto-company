@@ -140,12 +140,12 @@ for raw in "$@"; do
     continue
   fi
 
-  if [ "${ALLOW_MISSING_SUPABASE_ENV:-}" != "1" ] && [ "${ALLOW_MISSING_SUPABASE_ENV:-}" != "true" ]; then
-    if ! jq -e '.env.NEXT_PUBLIC_SUPABASE_URL == true and .env.SUPABASE_SERVICE_ROLE_KEY == true' "$out" >/dev/null 2>&1; then
-      fail_reasons+=("$base -> hosted runtime reachable but missing Supabase env vars (NEXT_PUBLIC_SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY)")
-      continue
-    fi
-  fi
+	  if [ "${ALLOW_MISSING_SUPABASE_ENV:-}" != "1" ] && [ "${ALLOW_MISSING_SUPABASE_ENV:-}" != "true" ]; then
+	    if ! jq -e '.env.NEXT_PUBLIC_SUPABASE_URL == true and .env.SUPABASE_SERVICE_ROLE_KEY == true' "$out" >/dev/null 2>&1; then
+	      fail_reasons+=("$base -> hosted runtime reachable but missing Supabase env vars (set NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY on hosting provider, then redeploy)")
+	      continue
+	    fi
+	  fi
 
   # Success: print chosen base url.
   printf '%s\n' "$base"
@@ -159,4 +159,27 @@ echo "Failures:" >&2
 for r in "${fail_reasons[@]:-}"; do
   echo "  - $r" >&2
 done
+echo "" >&2
+echo "Fixes (most common):" >&2
+echo "1) BASE_URL is wrong (marketing/static domain, not the Next.js workflow API runtime)." >&2
+echo "   BASE_URL must be the deployed app origin that serves /api/workflow/*." >&2
+echo "   Tip: run the probe table to compare candidates:" >&2
+echo "     ./projects/security-questionnaire-autopilot/scripts/probe-hosted-base-url-candidates.sh \"https://c1 https://c2\"" >&2
+echo "" >&2
+echo "2) Hosted runtime is reachable but missing Supabase env vars (env-health shows false booleans)." >&2
+echo "   Set these on the hosting provider for the deployed runtime, then redeploy:" >&2
+echo "     - NEXT_PUBLIC_SUPABASE_URL" >&2
+echo "     - SUPABASE_SERVICE_ROLE_KEY" >&2
+echo "" >&2
+echo "   Where to set them:" >&2
+echo "     - Vercel: Project -> Settings -> Environment Variables (Production at minimum), then redeploy" >&2
+echo "     - Cloudflare Pages: Project -> Settings -> Environment variables (Production), then trigger a new deployment" >&2
+echo "" >&2
+echo "   Note: GitHub Actions secrets do NOT configure the hosted runtime unless your deployment pipeline maps them." >&2
+echo "" >&2
+echo "Docs:" >&2
+echo "  - docs/qa/cycle-005-hosted-persistence-evidence-preflight.md" >&2
+echo "  - docs/devops/base-url-discovery.md" >&2
+echo "  - docs/devops/cycle-005-hosted-runtime-env-vars.md" >&2
+echo "  - docs/operations/cycle-005-hosted-runtime-env-vars.md" >&2
 exit 2

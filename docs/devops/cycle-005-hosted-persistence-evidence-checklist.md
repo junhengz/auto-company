@@ -17,6 +17,16 @@ Optional local probe:
   <candidate-1> <candidate-2> <candidate-3>
 ```
 
+Optional auto-discovery (requires hosting API env vars locally):
+
+```bash
+# Vercel:
+export VERCEL_TOKEN="***"
+export VERCEL_PROJECT="security-questionnaire-autopilot"
+
+./projects/security-questionnaire-autopilot/scripts/collect-base-url-candidates-from-hosting.sh
+```
+
 ## 2) Set Repo Variable Once (Recommended)
 
 Curate candidates in:
@@ -34,6 +44,15 @@ CANDIDATES="$(
 gh variable set HOSTED_WORKFLOW_BASE_URL_CANDIDATES -R "$REPO" --body "$CANDIDATES"
 ```
 
+If you want the runner to auto-discover candidates and set the variable for you:
+
+```bash
+./scripts/cycle-005/run-hosted-persistence-evidence.sh \
+  --autodiscover-hosting \
+  --set-variable \
+  --skip-sql-apply true
+```
+
 ## 3) Ensure Secrets Match The Run Mode
 
 - Default run mode: `skip_sql_apply=true`
@@ -45,6 +64,15 @@ Optional fallback-only secrets (only needed if hosted `POST /api/workflow/db-evi
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+
+Optional Vercel automation (only needed if you want CI to auto-fix missing hosted env vars):
+
+- `VERCEL_TOKEN`
+- `VERCEL_DEPLOY_HOOK_URL` (optional fallback if API redeploy is not possible)
+- Repo variable: `VERCEL_PROJECT_ID` (or `VERCEL_PROJECT`)
+
+See:
+- `docs/devops/cycle-005-vercel-env-sync-and-redeploy.md`
 
 ## 4) Trigger And Watch The Workflow (Recommended)
 

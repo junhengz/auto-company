@@ -60,3 +60,9 @@ The Cycle 005 evidence workflow is hardened to run this probe before executing t
 1. Probe candidates deterministically.
 2. Fail-fast with a clear error if candidates look like the marketing site / wrong service.
 3. Use the discovered `BASE_URL` for evidence collection.
+
+## Common Fixes
+
+If `env-health` is `ok=true` but `env.NEXT_PUBLIC_SUPABASE_URL` or `env.SUPABASE_SERVICE_ROLE_KEY` is `false`, you're hitting the right runtime but it is not configured for persistence. Set those env vars on the hosting provider (Vercel/Cloudflare Pages) and redeploy.
+
+See: `docs/qa/cycle-005-hosted-persistence-evidence-preflight.md`

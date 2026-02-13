@@ -10,6 +10,10 @@ The correct hosted `BASE_URL` must return `200` JSON from:
 
 This endpoint is safe: it returns only booleans (no secret values).
 
+If `env` booleans are `false`, the deployed runtime is missing required hosting-provider env vars. See:
+
+- `docs/devops/cycle-005-hosted-runtime-env-vars.md`
+
 ## Deterministic Discovery Script
 
 Use:
@@ -52,6 +56,25 @@ If your hosting integration publishes GitHub Deployments metadata, you can also 
 ./projects/security-questionnaire-autopilot/scripts/collect-base-url-candidates-from-github-deployments.sh
 ```
 
+## Optional: Hosting API Discovery (Vercel / Cloudflare Pages)
+
+If you have API access, you can collect candidate URLs from hosting provider APIs (best-effort; prints newline-separated URLs):
+
+```bash
+./projects/security-questionnaire-autopilot/scripts/collect-base-url-candidates-from-hosting.sh
+```
+
+Supported providers and env vars:
+
+- Vercel:
+  - `VERCEL_TOKEN`
+  - `VERCEL_PROJECT_ID` or `VERCEL_PROJECT`
+  - Optional (team-scoped): `VERCEL_TEAM_ID` and/or `VERCEL_TEAM_SLUG`
+- Cloudflare Pages:
+  - `CLOUDFLARE_API_TOKEN`
+  - `CLOUDFLARE_ACCOUNT_ID`
+  - `CF_PAGES_PROJECT`
+
 And if you want a single command that pulls candidates from env/vars/deployments and then probes `/api/workflow/env-health`, use:
 
 ```bash
@@ -70,6 +93,10 @@ By default, the script only accepts a candidate if the hosted runtime is configu
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+
+These must be set on the deployed runtime (hosting provider), then redeployed/restarted:
+
+- `docs/devops/cycle-005-hosted-runtime-env-vars.md`
 
 If you only want to confirm the app is correct (even before env vars are set):
 

@@ -70,7 +70,8 @@ normalize_url() {
   if [[ "$u" != http://* && "$u" != https://* ]]; then
     u="https://$u"
   fi
-  u="$(printf '%s' "$u" | sed -E 's#^(https?://[^/]+).*$#\\1#')"
+  # Extract scheme://host while dropping any path/query fragments.
+  u="$(printf '%s' "$u" | sed -E 's#^(https?://[^/]+).*$#\1#')"
   u="${u%/}"
   printf '%s' "$u"
 }
@@ -115,4 +116,3 @@ for raw in "$@"; do
 
   printf '%s  %s  %s  %s  %s  %s\n' "$base" "$code" "$ok" "$has_url" "$has_service" "$note"
 done
-

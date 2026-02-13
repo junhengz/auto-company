@@ -35,6 +35,9 @@ if [ -z "${BASE_URL_RAW:-}" ]; then
   exit 2
 fi
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+HELPER="$ROOT/projects/security-questionnaire-autopilot/scripts/print-hosted-supabase-env-setup-help.sh"
+
 require_bin() {
   local name="$1"
   if ! command -v "$name" >/dev/null 2>&1; then
@@ -74,7 +77,17 @@ if [ "$env_code" != "200" ]; then
   exit 2
 fi
 jq -e '.ok == true' "$ENV_HEALTH_OUT" >/dev/null
-jq -e '.env.NEXT_PUBLIC_SUPABASE_URL == true and .env.SUPABASE_SERVICE_ROLE_KEY == true' "$ENV_HEALTH_OUT" >/dev/null
+if ! jq -e '.env.NEXT_PUBLIC_SUPABASE_URL == true and .env.SUPABASE_SERVICE_ROLE_KEY == true' "$ENV_HEALTH_OUT" >/dev/null 2>&1; then
+  echo "Hosted runtime is missing required Supabase env vars." >&2
+  echo "Expected: NEXT_PUBLIC_SUPABASE_URL=true and SUPABASE_SERVICE_ROLE_KEY=true" >&2
+  jq . "$ENV_HEALTH_OUT" >&2 || true
+  if [ -x "$HELPER" ]; then
+    "$HELPER" "$BASE_URL" || true
+  else
+    echo "See: docs/devops/cycle-005-hosted-runtime-env-vars.md" >&2
+  fi
+  exit 2
+fi
 
 sup_code="$(curl -sS -m "$T" -o "$SUPABASE_HEALTH_OUT" -w "%{http_code}" "$BASE_URL/api/workflow/supabase-health?requireSeed=1&requirePilotDeals=1" || echo "000")"
 if [ "$sup_code" != "200" ]; then
@@ -144,4 +157,3 @@ jq -n \
   }' > "$SUMMARY_OUT"
 
 printf '%s\n' "$SUMMARY_OUT"
-

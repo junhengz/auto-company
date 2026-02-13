@@ -9,7 +9,8 @@ set -euo pipefail
 # 3) HOSTED_WORKFLOW_BASE_URL_CANDIDATES (comma/space separated)
 # 4) CYCLE_005_BASE_URL_CANDIDATES (comma/space separated; legacy name)
 # 5) HOSTED_BASE_URL_CANDIDATES / WORKFLOW_APP_BASE_URL_CANDIDATES (legacy names)
-# 6) GitHub Deployments metadata (best-effort; may be empty)
+# 6) Hosting provider APIs (best-effort; requires optional env vars; may be empty)
+# 7) GitHub Deployments metadata (best-effort; may be empty)
 #
 # Output: prints the selected BASE_URL (single line) to stdout.
 
@@ -18,6 +19,7 @@ PROJECT="$ROOT/projects/security-questionnaire-autopilot"
 
 DISCOVER="$PROJECT/scripts/discover-hosted-base-url.sh"
 COLLECT_DEPLOYMENTS="$PROJECT/scripts/collect-base-url-candidates-from-github-deployments.sh"
+COLLECT_HOSTING="$PROJECT/scripts/collect-base-url-candidates-from-hosting.sh"
 
 usage() {
   cat >&2 <<'EOF'
@@ -86,6 +88,23 @@ fi
 if [ -z "$candidates" ] && have_env "WORKFLOW_APP_BASE_URL_CANDIDATES"; then
   candidates="${WORKFLOW_APP_BASE_URL_CANDIDATES}"
   source="env:WORKFLOW_APP_BASE_URL_CANDIDATES"
+fi
+
+if [ -z "$candidates" ]; then
+  # Hosting API discovery is optional; only attempts if the relevant env vars exist.
+  # Vercel:
+  # - VERCEL_TOKEN + (VERCEL_PROJECT_ID or VERCEL_PROJECT)
+  # Cloudflare Pages:
+  # - CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID + CF_PAGES_PROJECT
+  if (have_env "VERCEL_TOKEN" && (have_env "VERCEL_PROJECT_ID" || have_env "VERCEL_PROJECT")) || \
+     (have_env "CLOUDFLARE_API_TOKEN" && have_env "CLOUDFLARE_ACCOUNT_ID" && have_env "CF_PAGES_PROJECT"); then
+    echo "No explicit BASE_URL candidates provided; attempting hosting API discovery..." >&2
+    discovered="$("$COLLECT_HOSTING" | join_lines_to_space || true)"
+    candidates="${discovered:-}"
+    if [ -n "$candidates" ]; then
+      source="hosting_apis"
+    fi
+  fi
 fi
 
 if [ -z "$candidates" ] && have_env "GITHUB_REPOSITORY" && have_env "GITHUB_TOKEN"; then
