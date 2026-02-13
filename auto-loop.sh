@@ -7,14 +7,15 @@
 #
 # Usage:
 #   ./auto-loop.sh              # Run in foreground
-#   ./auto-loop.sh --daemon     # Run via launchd (no tty)
+#   ./auto-loop.sh --daemon     # Run via OS daemon manager (no tty)
 #
 # Stop:
 #   ./stop-loop.sh              # Graceful stop
 #   kill $(cat .auto-loop.pid)  # Force stop
 #
 # Config (env vars):
-#   MODEL=gpt-5-codex         # Codex model (default: gpt-5-codex)
+#   MODEL=gpt-5.3-codex         # Codex model (default: gpt-5.3-codex)
+#   REASONING_EFFORT=high       # Reasoning effort (default: high)
 #   LOOP_INTERVAL=30            # Seconds between cycles (default: 30)
 #   CYCLE_TIMEOUT_SECONDS=1800  # Max seconds per cycle before force-kill
 #   MAX_CONSECUTIVE_ERRORS=5    # Circuit breaker threshold
@@ -36,7 +37,8 @@ PID_FILE="$PROJECT_DIR/.auto-loop.pid"
 STATE_FILE="$PROJECT_DIR/.auto-loop-state"
 
 # Loop settings (all overridable via env vars)
-MODEL="${MODEL:-gpt-5-codex}"
+MODEL="${MODEL:-gpt-5.3-codex}"
+REASONING_EFFORT="${REASONING_EFFORT:-high}"
 LOOP_INTERVAL="${LOOP_INTERVAL:-30}"
 CYCLE_TIMEOUT_SECONDS="${CYCLE_TIMEOUT_SECONDS:-1800}"
 MAX_CONSECUTIVE_ERRORS="${MAX_CONSECUTIVE_ERRORS:-5}"
@@ -46,9 +48,17 @@ MAX_LOGS="${MAX_LOGS:-200}"
 
 # === Functions ===
 
+now_ts() {
+    # When trapping shutdown signals under service managers, external `date`
+    # can be interrupted. Fall back to bash's time formatter.
+    date '+%Y-%m-%d %H:%M:%S' 2>/dev/null \
+        || printf '%(%Y-%m-%d %H:%M:%S)T\n' -1 2>/dev/null \
+        || echo "unknown-time"
+}
+
 log() {
     local timestamp
-    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    timestamp=$(now_ts)
     local msg="[$timestamp] $1"
     echo "$msg" >> "$LOG_DIR/auto-loop.log"
     if [ -t 1 ]; then
@@ -61,7 +71,7 @@ log_cycle() {
     local status=$2
     local msg=$3
     local timestamp
-    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    timestamp=$(now_ts)
     echo "[$timestamp] Cycle #$cycle_num [$status] $msg" >> "$LOG_DIR/auto-loop.log"
     if [ -t 1 ]; then
         echo "[$timestamp] Cycle #$cycle_num [$status] $msg"
@@ -88,9 +98,10 @@ save_state() {
     cat > "$STATE_FILE" << EOF
 LOOP_COUNT=$loop_count
 ERROR_COUNT=$error_count
-LAST_RUN=$(date '+%Y-%m-%d %H:%M:%S')
+LAST_RUN=$(now_ts)
 STATUS=$1
 MODEL=$MODEL
+REASONING_EFFORT=$REASONING_EFFORT
 EOF
 }
 
@@ -111,9 +122,18 @@ rotate_logs() {
         log "Log rotation: removed $to_delete old cycle logs"
     fi
 
+    # Keep only the latest N cycle prompt files
+    local prompt_count
+    prompt_count=$(find "$LOG_DIR" -name "cycle-*-prompt.md" -type f 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$prompt_count" -gt "$MAX_LOGS" ]; then
+        local prompts_to_delete=$((prompt_count - MAX_LOGS))
+        find "$LOG_DIR" -name "cycle-*-prompt.md" -type f | sort | head -n "$prompts_to_delete" | xargs rm -f 2>/dev/null || true
+        log "Prompt rotation: removed $prompts_to_delete old cycle prompts"
+    fi
+
     # Rotate main log if over 10MB
     local log_size
-    log_size=$(stat -f%z "$LOG_DIR/auto-loop.log" 2>/dev/null || echo 0)
+    log_size=$(stat -f%z "$LOG_DIR/auto-loop.log" 2>/dev/null || stat -c%s "$LOG_DIR/auto-loop.log" 2>/dev/null || echo 0)
     if [ "$log_size" -gt 10485760 ]; then
         mv "$LOG_DIR/auto-loop.log" "$LOG_DIR/auto-loop.log.old"
         log "Main log rotated (was ${log_size} bytes)"
@@ -150,7 +170,7 @@ validate_consensus() {
 }
 
 run_codex_cycle() {
-    local prompt="$1"
+    local prompt_file="$1"
     local output_file timeout_flag last_message_file
     local -a cmd
 
@@ -161,15 +181,17 @@ run_codex_cycle() {
     set +e
     (
         cd "$PROJECT_DIR"
-        cmd=(codex exec "$prompt" \
+        cmd=(codex exec - \
             --json \
             --skip-git-repo-check \
             --dangerously-bypass-approvals-and-sandbox \
+            -c "reasoning.effort=\"$REASONING_EFFORT\"" \
+            -c "model_reasoning_effort=\"$REASONING_EFFORT\"" \
             -o "$last_message_file")
         if [ -n "$MODEL" ]; then
             cmd+=(--model "$MODEL")
         fi
-        "${cmd[@]}"
+        "${cmd[@]}" < "$prompt_file"
     ) > "$output_file" 2>&1 &
     local codex_pid=$!
 
@@ -274,7 +296,7 @@ error_count=0
 
 log "=== Auto Company Loop Started (PID $$) ==="
 log "Project: $PROJECT_DIR"
-log "Model: $MODEL | Interval: ${LOOP_INTERVAL}s | Timeout: ${CYCLE_TIMEOUT_SECONDS}s | Breaker: ${MAX_CONSECUTIVE_ERRORS} errors"
+log "Model: $MODEL (effort: $REASONING_EFFORT) | Interval: ${LOOP_INTERVAL}s | Timeout: ${CYCLE_TIMEOUT_SECONDS}s | Breaker: ${MAX_CONSECUTIVE_ERRORS} errors"
 
 # === Main Loop ===
 
@@ -300,7 +322,9 @@ while true; do
     # Build prompt with consensus pre-injected
     PROMPT=$(cat "$PROMPT_FILE")
     CONSENSUS=$(cat "$CONSENSUS_FILE" 2>/dev/null || echo "No consensus file found. This is the very first cycle.")
-    FULL_PROMPT="$PROMPT
+    cycle_prompt="$LOG_DIR/cycle-$(printf '%04d' $loop_count)-prompt.md"
+    cat > "$cycle_prompt" << EOF
+$PROMPT
 
 ---
 
@@ -310,10 +334,11 @@ $CONSENSUS
 
 ---
 
-This is Cycle #$loop_count. Act decisively."
+This is Cycle #$loop_count. Act decisively.
+EOF
 
     # Run Codex in headless mode with per-cycle timeout
-    run_codex_cycle "$FULL_PROMPT"
+    run_codex_cycle "$cycle_prompt"
 
     # Save full output to cycle log
     echo "$OUTPUT" > "$cycle_log"

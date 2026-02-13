@@ -73,3 +73,41 @@ Expected outputs on success:
 ## Next Action
 Obtain the real hosted `BASE_URL` and Supabase credentials (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and optionally `SUPABASE_DB_URL`), then run `projects/security-questionnaire-autopilot/scripts/cycle-005-hosted-supabase-apply-and-run.sh` once to append DB evidence into `docs/sales/cycle-003-hosted-workflow-pilot-001-execution.md`.
 
+## Follow-Up (2026-02-13): What Blocked End-to-End Execution Here
+This workspace cannot complete the requested "set hosted env vars -> redeploy -> run Cycle 005 evidence" because we do not have:
+- A reachable hosted runtime `BASE_URL` (publicly resolvable origin serving `/api/workflow/env-health`).
+- Hosting-provider credentials (Vercel/Cloudflare API tokens) to set runtime env vars + trigger redeploy.
+- GitHub repo write access to add/dispatch the shipped GitHub Actions workflows (and upstream `main` does not currently include them).
+
+Concrete checks performed:
+- Probed the prior candidate Vercel origins (from `docs/qa-bach/cycle-005-base-url-probe-2026-02-13-v2.txt`):
+  - all return `DEPLOYMENT_NOT_FOUND` on `GET /api/workflow/env-health`.
+- Probed the prior candidate Cloudflare Pages origins:
+  - DNS does not resolve (no `*.pages.dev` project found).
+- Confirmed upstream `main` does not contain the workflows needed for automation:
+  - `.github/workflows/cycle-005-hosted-persistence-evidence.yml` returns `404` on GitHub raw.
+  - `.github/workflows/cycle-005-hosted-runtime-env-sync.yml` returns `404` on GitHub raw.
+
+Shipped fix to reduce future operator time:
+- Fixed a URL-normalization bug in `projects/security-questionnaire-autopilot/scripts/probe-hosted-base-url-candidates.sh` that previously collapsed candidates to the literal string `\\1`, causing false "Bad hostname" probe failures.
+
+## Smallest Unblock (Recommended)
+1) Create or identify the real hosted Next.js runtime for `projects/security-questionnaire-autopilot` (Vercel is the intended host per repo docs).
+2) Set on the hosting provider (Production at minimum), then redeploy:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+3) Verify:
+- `curl -sS \"<BASE_URL>/api/workflow/env-health\" | jq .` returns `ok=true` and both env booleans `true`.
+- `curl -sS \"<BASE_URL>/api/workflow/supabase-health?requireSeed=1&requirePilotDeals=1\" | jq .` returns `ok=true`.
+4) Run Cycle 005 evidence locally (from repo root) and keep artifacts committed:
+```bash
+export SKIP_SUPABASE_SQL_APPLY=1
+BASE_URL="https://<your-hosted-app-domain>"
+RUN_ID="pilot-001-customer-originated-db-$(date +%Y%m%d-%H%M%S)"
+./projects/security-questionnaire-autopilot/scripts/cycle-005-hosted-supabase-apply-and-run.sh "$BASE_URL" "$RUN_ID"
+```
+
+## Automation Option (If You Want This To Be One Click)
+Merge these local workflow files into the upstream default branch and configure secrets/vars:
+- `.github/workflows/cycle-005-hosted-runtime-env-sync.yml`
+- `.github/workflows/cycle-005-hosted-persistence-evidence.yml`

@@ -17,7 +17,47 @@ LOG_DIR="$PROJECT_DIR/logs"
 STATE_FILE="$PROJECT_DIR/.auto-loop-state"
 PID_FILE="$PROJECT_DIR/.auto-loop.pid"
 PAUSE_FLAG="$PROJECT_DIR/.auto-loop-paused"
+
 LABEL="com.autocompany.loop"
+SYSTEMD_UNIT="autocompany-loop.service"
+SYSTEMD_PATH="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${SYSTEMD_UNIT}"
+OS="$(uname -s)"
+
+print_daemon_status() {
+    if [ -f "$PAUSE_FLAG" ]; then
+        echo "Daemon: PAUSED (.auto-loop-paused present)"
+        return
+    fi
+
+    if [ "$OS" = "Darwin" ]; then
+        if launchctl list 2>/dev/null | grep -q "$LABEL"; then
+            echo "Daemon: LOADED ($LABEL via launchd)"
+        else
+            echo "Daemon: NOT LOADED"
+        fi
+        return
+    fi
+
+    if [ "$OS" = "Linux" ]; then
+        if ! command -v systemctl &>/dev/null; then
+            echo "Daemon: UNKNOWN (systemctl not found)"
+            return
+        fi
+
+        if systemctl --user is-active --quiet "$SYSTEMD_UNIT" 2>/dev/null; then
+            echo "Daemon: ACTIVE ($SYSTEMD_UNIT via systemd --user)"
+        elif systemctl --user is-enabled --quiet "$SYSTEMD_UNIT" 2>/dev/null; then
+            echo "Daemon: ENABLED (inactive) ($SYSTEMD_UNIT)"
+        elif [ -f "$SYSTEMD_PATH" ]; then
+            echo "Daemon: INSTALLED (not enabled) ($SYSTEMD_UNIT)"
+        else
+            echo "Daemon: NOT LOADED"
+        fi
+        return
+    fi
+
+    echo "Daemon: UNKNOWN (unsupported OS: $OS)"
+}
 
 case "${1:-}" in
     --status)
@@ -33,13 +73,7 @@ case "${1:-}" in
             echo "Loop: NOT RUNNING"
         fi
 
-        if [ -f "$PAUSE_FLAG" ]; then
-            echo "Daemon: PAUSED (.auto-loop-paused present)"
-        elif launchctl list 2>/dev/null | grep -q "$LABEL"; then
-            echo "Daemon: LOADED ($LABEL)"
-        else
-            echo "Daemon: NOT LOADED"
-        fi
+        print_daemon_status
 
         if [ -f "$STATE_FILE" ]; then
             echo ""
