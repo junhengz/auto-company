@@ -1,71 +1,124 @@
 ---
 name: team
-description: "Quickly assemble a temporary AI agent team for a task by selecting the best-fit members from .claude/agents/."
+description: "Assemble and run a temporary multi-role team using dedicated Codex prompts per role. Use when a task benefits from 2-5 specialist roles from .claude/agents/."
 argument-hint: "[task description]"
 disable-model-invocation: true
 ---
 
-# Assemble A Temporary Team
+# Codex Team Orchestration Skill
 
-Based on the task below, select the most suitable agents from the company roster and form a temporary execution team.
+Use this skill to execute role-based parallel work with dedicated Codex prompt files and role-specific runs.
 
 ## Task
 
 $ARGUMENTS
 
-## Available Agents
+## Role Source
 
-All agents are defined in `.claude/agents/`:
+Agent role definitions live in `.claude/agents/`.
 
-| Agent | File | Responsibility |
-|-------|------|------|
-| CEO | `ceo-bezos` | strategy, business model, PR/FAQ, prioritization |
-| CTO | `cto-vogels` | architecture, tech choices, systems design |
-| Critic | `critic-munger` | challenge assumptions, find fatal flaws, pre-mortem |
-| Product Design | `product-norman` | product definition, UX, usability |
-| UI Design | `ui-duarte` | visual design, design system, typography/color |
-| Interaction Design | `interaction-cooper` | user flows, personas, interaction patterns |
-| Full-stack Development | `fullstack-dhh` | implementation, engineering plan, coding |
-| QA | `qa-bach` | test strategy, quality risk, bug analysis |
-| DevOps/SRE | `devops-hightower` | CI/CD, infrastructure, monitoring, reliability |
-| Marketing | `marketing-godin` | positioning, brand, acquisition, content |
-| Operations | `operations-pg` | growth ops, retention, community, PMF execution |
-| Sales | `sales-ross` | funnel strategy, conversion, sales process |
-| CFO | `cfo-campbell` | pricing, financial model, cost control, unit economics |
-| Research | `research-thompson` | market/competitor analysis, trend and opportunity discovery |
+## Mandatory Runtime Design
+
+For each role run, you must:
+- use a **dedicated prompt file**
+- run `codex exec` (not raw API calls)
+- set model to `gpt-5.3-codex`
+- set reasoning effort to `high`
+- run with full access mode (`--dangerously-bypass-approvals-and-sandbox`)
+- capture both final response and JSONL event stream
 
 ## Execution Steps
 
-### 1. Analyze the task and select members
+### 1. Select a focused team (2-5 roles)
 
-Choose 2-5 most relevant agents.
+Pick only roles needed for the task. Avoid role overlap.
 
-Selection rules:
-- **Need only**: more people is not better; precision matters
-- **Coverage chain**: if task spans design -> build -> launch, include critical handoff roles
-- **No redundancy**: avoid overlapping responsibilities
+### 2. Prepare run workspace
 
-Briefly tell the founder who you selected and why, then start execution immediately.
+```bash
+RUN_TS="$(date +%Y%m%d-%H%M%S)"
+RUN_DIR="logs/team/$RUN_TS"
+mkdir -p "$RUN_DIR"
+```
 
-### 2. Build the Agent Team
+### 3. Spawn one dedicated Codex run per role
 
-Use Agent Teams to create a temporary team:
-- Create a team with a short English `team_name` in `kebab-case`
-- Create clear, context-rich tasks for each member (`TaskCreate`)
-- Spawn each teammate via Task tool with `subagent_type=general-purpose`
-- Inject the full corresponding agent profile file into each teammate prompt
-- Tell each teammate their role, required output, and required output folder `docs/<role>/`
+For each selected role `<role_id>`:
 
-### 3. Coordinate and synthesize
+1. Load role profile from `.claude/agents/<role_id>.md`
+2. Build a dedicated prompt file:
 
-- Lead and coordinate work across teammates
-- Collect outputs and synthesize into one clear plan/result
-- If disagreement exists, list viewpoints and decision tradeoffs explicitly
-- Clean up temporary team resources after completion
+```bash
+ROLE="<role_id>"
+PROMPT_FILE="$RUN_DIR/${ROLE}.prompt.md"
+FINAL_FILE="$RUN_DIR/${ROLE}.final.txt"
+EVENTS_FILE="$RUN_DIR/${ROLE}.events.jsonl"
 
-## Notes
+cat > "$PROMPT_FILE" <<'PROMPT'
+You are running as role: <role_id>.
 
-- Use clear English for all communications
-- Store each member's outputs in `docs/<role>/`
-- Team is temporary and should be dissolved after task completion
-- Founder is the final decision-maker; agents advise, they do not override
+[Insert full role profile from .claude/agents/<role_id>.md]
+
+Task:
+$ARGUMENTS
+
+Requirements:
+- Execute from your role perspective.
+- Produce concrete deliverables, not generic discussion.
+- Write role output to docs/<mapped-role-dir>/.
+- End with a concise "Next Action" for handoff.
+PROMPT
+```
+
+3. Execute the role run:
+
+```bash
+codex exec - \
+  --model gpt-5.3-codex \
+  --json \
+  --skip-git-repo-check \
+  --dangerously-bypass-approvals-and-sandbox \
+  -c 'reasoning.effort="high"' \
+  -c 'model_reasoning_effort="high"' \
+  -o "$FINAL_FILE" \
+  < "$PROMPT_FILE" > "$EVENTS_FILE"
+```
+
+### 4. Synthesize and decide
+
+After all role runs finish:
+- read each `${ROLE}.final.txt`
+- merge into one decision-quality synthesis
+- explicitly resolve conflicts with rationale
+- produce one owner + one immediate next action
+
+### 5. Persist outputs
+
+- role artifacts must be in `docs/<role>/`
+- orchestration records remain in `logs/team/<timestamp>/`
+
+## Role Directory Mapping
+
+| Role ID | Output Directory |
+|---|---|
+| `ceo-bezos` | `docs/ceo/` |
+| `cto-vogels` | `docs/cto/` |
+| `critic-munger` | `docs/critic/` |
+| `product-norman` | `docs/product/` |
+| `ui-duarte` | `docs/ui/` |
+| `interaction-cooper` | `docs/interaction/` |
+| `fullstack-dhh` | `docs/fullstack/` |
+| `qa-bach` | `docs/qa/` |
+| `devops-hightower` | `docs/devops/` |
+| `marketing-godin` | `docs/marketing/` |
+| `operations-pg` | `docs/operations/` |
+| `sales-ross` | `docs/sales/` |
+| `cfo-campbell` | `docs/cfo/` |
+| `research-thompson` | `docs/research/` |
+
+## Guardrails
+
+- Do not ask for API keys; use the logged-in Codex CLI session.
+- Keep prompts role-specific and task-specific.
+- Keep teams temporary and minimal.
+- Prefer shipping concrete artifacts over discussion.
