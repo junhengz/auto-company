@@ -7,6 +7,7 @@ set -euo pipefail
 #
 # Note:
 # - This is not a stable production origin. Do NOT persist this URL into HOSTED_WORKFLOW_BASE_URL_CANDIDATES.
+# - With canonical base URL governance, do NOT persist this URL into HOSTED_WORKFLOW_BASE_URL either.
 # - This helper intentionally skips `supabase-health` to allow env-only validation while Supabase is still pending.
 
 usage() {
@@ -136,7 +137,8 @@ BASE_URL=""
 echo "Waiting for trycloudflare URL..." >&2
 for _ in $(seq 1 240); do
   # Quick Tunnel hostnames may include mixed case; match broadly.
-  BASE_URL="$(sed -nE 's#.*(https://[A-Za-z0-9-]+\\.trycloudflare\\.com).*#\\1#p' "$RUN_DIR/cloudflared.log" 2>/dev/null | head -n 1 || true)"
+  # sed ERE uses `\.` to match a literal dot; avoid over-escaping (\\.) which won't match.
+  BASE_URL="$(sed -nE 's#.*(https://[A-Za-z0-9-]+\.trycloudflare\.com).*#\1#p' "$RUN_DIR/cloudflared.log" 2>/dev/null | head -n 1 || true)"
   BASE_URL="$(printf '%s' "${BASE_URL:-}" | tr -d '\r' | head -n 1)"
   if [ -n "${BASE_URL:-}" ]; then
     break
@@ -156,16 +158,34 @@ host="${BASE_URL#https://}"
 host="${host#http://}"
 host="${host%%/*}"
 
+resolve_ipv4s() {
+  local h="$1"
+
+  # Prefer system resolver first (fastest).
+  # getent ahostsv4 output: <ip> <canon> <fam>
+  getent ahostsv4 "$h" 2>/dev/null | awk '{print $1}' | rg -v '^$' | head -n 6 || true
+
+  # Some environments have a broken local stub resolver for trycloudflare hostnames
+  # (e.g., NXDOMAIN from 127.0.0.53) while public resolvers work fine.
+  if command -v dig >/dev/null 2>&1; then
+    dig @1.1.1.1 +short "$h" A 2>/dev/null | rg -v '^$' | head -n 6 || true
+    dig @8.8.8.8 +short "$h" A 2>/dev/null | rg -v '^$' | head -n 6 || true
+  fi
+}
+
 echo "Waiting for tunnel DNS to resolve (host=$host)..." >&2
-deadline_dns="$(( $(date +%s) + 90 ))"
+ips=""
+deadline_dns="$(( $(date +%s) + 180 ))"
 while [ "$(date +%s)" -lt "$deadline_dns" ]; do
-  if getent hosts "$host" >/dev/null 2>&1; then
+  ips="$(resolve_ipv4s "$host" | awk '!seen[$0]++' | tr '\n' ' ' | sed -e 's/[[:space:]]*$//')"
+  if [ -n "${ips:-}" ]; then
     break
   fi
   sleep 1
 done
-if ! getent hosts "$host" >/dev/null 2>&1; then
+if [ -z "${ips:-}" ]; then
   echo "Tunnel host did not resolve within timeout: $host" >&2
+  echo "Note: if your system resolver is broken for trycloudflare hostnames, install 'dig' (dnsutils) or fix systemd-resolved." >&2
   exit 2
 fi
 
@@ -173,7 +193,12 @@ echo "Probing tunnel env-health (retry up to 90s)..." >&2
 deadline="$(( $(date +%s) + 90 ))"
 code="000"
 while [ "$(date +%s)" -lt "$deadline" ]; do
-  code="$(curl -sS -m 10 -o "$RUN_DIR/env-health.tunnel.json" -w "%{http_code}" "${BASE_URL}/api/workflow/env-health" 2>/dev/null || echo "000")"
+  for ip in $ips; do
+    code="$(curl -sS -m 10 --resolve "${host}:443:${ip}" -o "$RUN_DIR/env-health.tunnel.json" -w "%{http_code}" "${BASE_URL}/api/workflow/env-health" 2>/dev/null || echo "000")"
+    if [ "$code" = "200" ]; then
+      break
+    fi
+  done
   if [ "$code" = "200" ]; then
     break
   fi
@@ -196,7 +221,7 @@ fi
 echo "Dispatching Cycle 005 preflight-only against BASE_URL=$BASE_URL on repo=$REPO" >&2
 echo "Note: this run validates BASE_URL + env-health only (supabase-health is skipped)." >&2
 
-start_ts="$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")"
+start_ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 ref_args=()
 if [ -n "${REF:-}" ]; then
   ref_args+=(--ref "$REF")
@@ -210,7 +235,8 @@ gh workflow run cycle-005-hosted-persistence-evidence.yml -R "$REPO" \
   -f enable_autorun_after_preflight=false \
   -f base_url="$BASE_URL" >/dev/null
 
-run_dbid="$(gh run list -R "$REPO" --workflow cycle-005-hosted-persistence-evidence.yml -L 10 --json databaseId,createdAt -q \"map(select(.createdAt >= \\\"$start_ts\\\")) | .[0].databaseId\" 2>/dev/null || true)"
+query="map(select(.createdAt >= \"${start_ts}\")) | .[0].databaseId"
+run_dbid="$(gh run list -R "$REPO" --workflow cycle-005-hosted-persistence-evidence.yml -L 10 --json databaseId,createdAt -q "$query" 2>/dev/null || true)"
 if [ -z "${run_dbid:-}" ] || [ "${run_dbid:-}" = "null" ]; then
   run_dbid="$(gh run list -R "$REPO" --workflow cycle-005-hosted-persistence-evidence.yml -L 1 --json databaseId -q '.[0].databaseId' 2>/dev/null || true)"
 fi
@@ -219,7 +245,7 @@ if [ -z "${run_dbid:-}" ] || [ "${run_dbid:-}" = "null" ]; then
   exit 2
 fi
 
-run_url="$(gh run view -R "$REPO" "$run_dbid" --json htmlUrl -q '.htmlUrl' 2>/dev/null || true)"
+run_url="$(gh run view -R "$REPO" "$run_dbid" --json url -q '.url' 2>/dev/null || true)"
 echo "GHA run databaseId: $run_dbid" >&2
 if [ -n "${run_url:-}" ] && [ "${run_url:-}" != "null" ]; then
   echo "GHA run url: $run_url" >&2

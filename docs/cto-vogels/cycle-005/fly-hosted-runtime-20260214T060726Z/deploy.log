@@ -1,0 +1,8 @@
+Fly auth missing.
+
+Fix one of:
+  1) Set FLY_API_TOKEN (recommended for non-interactive runs), then re-run:
+     export FLY_API_TOKEN='...'
+  2) Or login interactively:
+     flyctl auth login
+deploy_exit=2

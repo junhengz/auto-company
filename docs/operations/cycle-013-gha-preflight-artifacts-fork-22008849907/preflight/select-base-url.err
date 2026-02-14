@@ -1,0 +1,2 @@
+Using BASE_URL candidates source: env:BASE_URL_CANDIDATES
+./projects/security-questionnaire-autopilot/scripts/select-hosted-base-url.sh: line 133: /home/runner/work/auto-company/auto-company/projects/projects/security-questionnaire-autopilot/scripts/discover-hosted-base-url.sh: No such file or directory

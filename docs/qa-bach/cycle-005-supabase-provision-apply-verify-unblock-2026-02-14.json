@@ -1,0 +1,43 @@
+{
+  "checked_at_utc": "2026-02-14T03:35:48Z",
+  "repo": "junhengz/auto-company",
+  "objective": "Obtain a GitHub Actions run whose extracted supabase-verify JSON satisfies jq -e '.ok == true'.",
+  "blockers": [
+    {
+      "type": "missing_github_actions_secrets",
+      "required": [
+        "SUPABASE_ACCESS_TOKEN",
+        "SUPABASE_ORG_SLUG",
+        "SUPABASE_DB_PASSWORD"
+      ],
+      "evidence": [
+        "docs/qa-bach/cycle-018-gh-secrets-supabase-provision-junhengz_auto-company-20260214T033548Z-403937-12303.json",
+        "docs/devops/evidence/actions-secrets-check-junhengz_auto-company-20260214T033157Z-402190-21478.json"
+      ]
+    }
+  ],
+  "latest_known_run": {
+    "run_id": 22010216881,
+    "supabase_verify_evidence": "docs/devops/evidence/supabase-verify-run-22010216881.json",
+    "expected": {
+      "ok": false,
+      "reason": "workflow_failed_before_apply"
+    }
+  },
+  "acceptance_criteria": {
+    "artifact_present": "docs/devops/evidence/supabase-verify-run-<RUN_ID>.json exists",
+    "machine_check": "jq -e '.ok == true' docs/devops/evidence/supabase-verify-run-<RUN_ID>.json"
+  },
+  "operator_commands": {
+    "set_missing_secrets_noninteractive": "SUPABASE_ACCESS_TOKEN=... SUPABASE_ORG_SLUG=... SUPABASE_DB_PASSWORD=... scripts/devops/gh-ensure-supabase-provision-secrets.sh --repo junhengz/auto-company --set-missing --non-interactive",
+    "dispatch_watch_download": "scripts/devops/run-cycle-005-supabase-provision-apply-verify.sh --repo junhengz/auto-company",
+    "assert_ok": "jq -e '.ok == true' docs/devops/evidence/supabase-verify-run-<RUN_ID>.json"
+  },
+  "implemented_operator_confusion_reduction": [
+    {
+      "file": "scripts/devops/run-cycle-005-supabase-provision-apply-verify.sh",
+      "change": "--no-watch now dispatches only (no artifact download), and skip-secrets-check warns about ok=false fallback when secrets are absent."
+    }
+  ],
+  "next_action": "Set the three required secrets in junhengz/auto-company (via scripts/devops/gh-ensure-supabase-provision-secrets.sh --set-missing), then re-run scripts/devops/run-cycle-005-supabase-provision-apply-verify.sh and confirm jq -e '.ok == true' on the extracted supabase-verify JSON."
+}

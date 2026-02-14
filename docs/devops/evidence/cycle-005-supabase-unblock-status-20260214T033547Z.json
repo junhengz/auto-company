@@ -1,0 +1,15 @@
+{
+  "checked_at_utc": "2026-02-14T03:35:47Z",
+  "repo": "junhengz/auto-company",
+  "secret_check_evidence": "docs/devops/evidence/actions-secrets-check-junhengz_auto-company-20260214T033157Z-402190-21478.json",
+  "workflow_dispatch_evidence": "docs/devops/evidence/workflow-dispatch-20260214T033352Z.json",
+  "run_id": 22010383272,
+  "extracted_verify_json": "docs/devops/evidence/supabase-verify-run-22010383272.json",
+  "ok": false,
+  "missing_secrets": [
+    "SUPABASE_ACCESS_TOKEN",
+    "SUPABASE_ORG_SLUG",
+    "SUPABASE_DB_PASSWORD"
+  ],
+  "note": "ok=true requires setting the missing secrets then re-running cycle-005-supabase-provision-apply-verify-dispatch"
+}

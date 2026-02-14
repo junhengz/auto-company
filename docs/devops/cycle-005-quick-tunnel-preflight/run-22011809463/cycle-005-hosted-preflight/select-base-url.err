@@ -1,0 +1,2 @@
+Using BASE_URL candidates source: env:BASE_URL_CANDIDATES
+Probing: http://127.0.0.1:18080/api/workflow/env-health

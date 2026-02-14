@@ -1,0 +1,13 @@
+
+> security-questionnaire-autopilot-hosted@0.1.0 dev
+> next dev -p 18082
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:18082
+
+ ✓ Starting...
+ ✓ Ready in 1380ms
+ ✓ Compiled /api/workflow/env-health in 366ms (56 modules)
+ GET /api/workflow/env-health 200 in 450ms
+ GET /api/workflow/env-health 200 in 7ms
+ GET /api/workflow/env-health 200 in 26ms

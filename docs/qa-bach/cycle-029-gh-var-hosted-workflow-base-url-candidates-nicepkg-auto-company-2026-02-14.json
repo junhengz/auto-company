@@ -1,0 +1,1 @@
+{"message":"You must have repository read permissions or have the repository variables fine-grained permission.","documentation_url":"https://docs.github.com/rest/actions/variables#get-a-repository-variable","status":"403"}

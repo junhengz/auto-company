@@ -1,0 +1,3 @@
+candidate_base_url  http  ok  supabase_url  service_role  note
+https://auto-company.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::2xkc8-1771033586732-4aa6e1273155 '
+https://auto-company-hosted.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::kpnlr-1771033586814-6b665d665d50 '

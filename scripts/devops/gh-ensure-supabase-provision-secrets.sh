@@ -21,11 +21,12 @@ Flags:
   --repo OWNER/REPO        (default: inferred via gh)
   --check-only             Only check presence; do not set anything (default)
   --set-missing            Set missing secrets (values sourced from env or prompts)
+  --set-all                Set/overwrite all required secrets (values sourced from env or prompts)
   --non-interactive        Fail if a required value is missing from env (no prompts)
   --out-json PATH          Evidence JSON output path
   --out-log PATH           Evidence log output path
 
-Env (used when --set-missing):
+Env (used when --set-missing or --set-all):
   SUPABASE_ACCESS_TOKEN
   SUPABASE_ORG_SLUG
   SUPABASE_DB_PASSWORD
@@ -37,6 +38,10 @@ Examples:
   # Set missing secrets from env (non-interactive)
   SUPABASE_ACCESS_TOKEN=... SUPABASE_ORG_SLUG=... SUPABASE_DB_PASSWORD=... \
     scripts/devops/gh-ensure-supabase-provision-secrets.sh --repo OWNER/REPO --set-missing --non-interactive
+
+  # Force set/overwrite all required secrets from env (non-interactive)
+  SUPABASE_ACCESS_TOKEN=... SUPABASE_ORG_SLUG=... SUPABASE_DB_PASSWORD=... \
+    scripts/devops/gh-ensure-supabase-provision-secrets.sh --repo OWNER/REPO --set-all --non-interactive
 EOF
 }
 
@@ -59,6 +64,7 @@ require_bin jq
 REPO=""
 MODE="check"
 NON_INTERACTIVE="0"
+SET_ALL="0"
 OUT_JSON=""
 OUT_LOG=""
 
@@ -67,6 +73,7 @@ while [ "$#" -gt 0 ]; do
     --repo) REPO="${2:-}"; shift 2 ;;
     --check-only) MODE="check"; shift 1 ;;
     --set-missing) MODE="set"; shift 1 ;;
+    --set-all) MODE="set"; SET_ALL="1"; shift 1 ;;
     --non-interactive) NON_INTERACTIVE="1"; shift 1 ;;
     --out-json) OUT_JSON="${2:-}"; shift 2 ;;
     --out-log) OUT_LOG="${2:-}"; shift 2 ;;
@@ -201,6 +208,7 @@ report="$(jq -n \
 )"
 
 missing_any="0"
+cannot_verify_any="0"
 for s in "${required[@]}"; do
   st="$(secret_status "$s")"
   case "$st" in
@@ -220,47 +228,58 @@ for s in "${required[@]}"; do
       report="$(jq --arg s "$s" --arg st "$st" \
         '.secrets[$s] = {status:$st, exists:null, meta:null, action:"none", error:"HTTP 403 (forbidden)"}' <<<"$report")"
       log "secret $s: cannot verify (HTTP 403)"
+      cannot_verify_any="1"
       ;;
     *)
       report="$(jq --arg s "$s" --arg st "$st" \
         '.secrets[$s] = {status:$st, exists:null, meta:null, action:"none", error:"unknown error checking secret"}' <<<"$report")"
       log "secret $s: cannot verify (unknown)"
+      cannot_verify_any="1"
       ;;
   esac
 done
 
-if [ "$MODE" = "set" ] && [ "$missing_any" = "1" ]; then
-  for s in "${required[@]}"; do
-    st="$(jq -r --arg s "$s" '.secrets[$s].status' <<<"$report")"
-    if [ "$st" != "missing" ]; then
-      continue
+if [ "$MODE" = "set" ]; then
+  if [ "$SET_ALL" != "1" ] && [ "$missing_any" != "1" ]; then
+    if [ "$cannot_verify_any" = "1" ]; then
+      log "NOTE: at least one required secret could not be verified (403/unknown)."
+      log "NOTE: --set-missing only sets when status=missing; use --set-all if you intend to force set/overwrite."
     fi
+  fi
 
-    secret_flag="0"
-    case "$s" in
-      SUPABASE_ACCESS_TOKEN|SUPABASE_DB_PASSWORD) secret_flag="1" ;;
-    esac
+  if [ "$SET_ALL" = "1" ] || [ "$missing_any" = "1" ]; then
+    for s in "${required[@]}"; do
+      st="$(jq -r --arg s "$s" '.secrets[$s].status' <<<"$report")"
+      if [ "$SET_ALL" != "1" ] && [ "$st" != "missing" ]; then
+        continue
+      fi
 
-    if ! v="$(prompt_value "$s" "$secret_flag")"; then
-      report="$(jq --arg s "$s" \
-        '.secrets[$s].action="failed" | .secrets[$s].error="missing value (set env or allow prompts)"' <<<"$report")"
-      log "secret $s: cannot set (missing value)"
-      continue
-    fi
+      secret_flag="0"
+      case "$s" in
+        SUPABASE_ACCESS_TOKEN|SUPABASE_DB_PASSWORD) secret_flag="1" ;;
+      esac
 
-    log "secret $s: setting (value not printed)"
-    if printf '%s' "$v" | gh secret set "$s" -R "$REPO" --app actions >>"$OUT_LOG" 2>&1; then
-      # Refresh status (best-effort).
-      st2="$(secret_status "$s")"
-      report="$(jq --arg s "$s" --arg st2 "$st2" \
-        '.secrets[$s].action="set" | .secrets[$s].status=$st2 | .secrets[$s].exists=true | .secrets[$s].error=null' <<<"$report")"
-      log "secret $s: set"
-    else
-      report="$(jq --arg s "$s" \
-        '.secrets[$s].action="failed" | .secrets[$s].error="gh secret set failed (see log)"' <<<"$report")"
-      log "secret $s: set failed (see log)"
-    fi
-  done
+      if ! v="$(prompt_value "$s" "$secret_flag")"; then
+        report="$(jq --arg s "$s" \
+          '.secrets[$s].action="failed" | .secrets[$s].error="missing value (set env or allow prompts)"' <<<"$report")"
+        log "secret $s: cannot set (missing value)"
+        continue
+      fi
+
+      log "secret $s: setting (value not printed)"
+      if printf '%s' "$v" | gh secret set "$s" -R "$REPO" --app actions >>"$OUT_LOG" 2>&1; then
+        # Refresh status (best-effort; may still be forbidden to read).
+        st2="$(secret_status "$s")"
+        report="$(jq --arg s "$s" --arg st2 "$st2" \
+          '.secrets[$s].action="set" | .secrets[$s].status=$st2 | .secrets[$s].exists=true | .secrets[$s].error=null' <<<"$report")"
+        log "secret $s: set"
+      else
+        report="$(jq --arg s "$s" \
+          '.secrets[$s].action="failed" | .secrets[$s].error="gh secret set failed (see log)"' <<<"$report")"
+        log "secret $s: set failed (see log)"
+      fi
+    done
+  fi
 fi
 
 printf '%s\n' "$report" >"$OUT_JSON"
@@ -268,8 +287,14 @@ printf '%s\n' "$report" >"$OUT_JSON"
 ok="$(jq -r '
   .secrets
   | to_entries
-  | map(select(.value.status != "exists"))
-  | length == 0
+  | map(.value)
+  | map(
+      if (.status == "exists") then true
+      elif (.action == "set" and (.error == null)) then true
+      else false
+      end
+    )
+  | all
 ' "$OUT_JSON" 2>/dev/null || echo "false")"
 
 if [ "$MODE" = "check" ]; then

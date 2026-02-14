@@ -1,0 +1,67 @@
+BASE_URL candidates source: repo variable HOSTED_WORKFLOW_BASE_URL_CANDIDATES
+
+Copy/paste (repo variable HOSTED_WORKFLOW_BASE_URL_CANDIDATES):
+  gh variable set HOSTED_WORKFLOW_BASE_URL_CANDIDATES -R "junhengz/auto-company" --body \
+    "https://auto-company-sq-autopilot.fly.dev"
+
+Local BASE_URL probe report (candidate -> /api/workflow/env-health):
+candidate_base_url  http  ok  supabase_url  service_role  note
+curl: (6) Could not resolve host: auto-company-sq-autopilot.fly.dev
+https://auto-company-sq-autopilot.fly.dev  000  -  -  -  
+
+Local BASE_URL probe failed. Refusing to dispatch CI with an unknown/invalid BASE_URL.
+
+Probing: https://auto-company-sq-autopilot.fly.dev/api/workflow/env-health
+curl: (6) Could not resolve host: auto-company-sq-autopilot.fly.dev
+Error: no valid hosted Next.js runtime BASE_URL found.
+Probe requirements: GET <BASE_URL>/api/workflow/env-health -> { ok:true, env:{ NEXT_PUBLIC_SUPABASE_URL:true, SUPABASE_SERVICE_ROLE_KEY:true } }
+
+Failures:
+  - https://auto-company-sq-autopilot.fly.dev -> env-health HTTP 000000
+
+Fixes (most common):
+1) BASE_URL is wrong (marketing/static domain, not the Next.js workflow API runtime).
+   BASE_URL must be the deployed app origin that serves /api/workflow/*.
+   Tip: run the probe table to compare candidates:
+     ./projects/security-questionnaire-autopilot/scripts/probe-hosted-base-url-candidates.sh "https://c1 https://c2"
+
+2) Hosted runtime is reachable but missing Supabase env vars (env-health shows false booleans).
+   Set these on the hosting provider for the deployed runtime, then redeploy:
+     - NEXT_PUBLIC_SUPABASE_URL
+     - SUPABASE_SERVICE_ROLE_KEY
+
+   Where to set them:
+     - Vercel: Project -> Settings -> Environment Variables (Production at minimum), then redeploy
+     - Cloudflare Pages: Project -> Settings -> Environment variables (Production), then trigger a new deployment
+
+   Note: GitHub Actions secrets do NOT configure the hosted runtime unless your deployment pipeline maps them.
+
+Docs:
+  - docs/qa/cycle-005-hosted-persistence-evidence-preflight.md
+  - docs/devops/base-url-discovery.md
+  - docs/devops/cycle-005-hosted-runtime-env-vars.md
+  - docs/operations/cycle-005-hosted-runtime-env-vars.md
+
+Hosted runtime is missing required Supabase env vars:
+  - NEXT_PUBLIC_SUPABASE_URL
+  - SUPABASE_SERVICE_ROLE_KEY
+
+These must be configured on the hosting provider for the deployed Next.js app (the one serving /api/workflow/*),
+then you must redeploy for the new env to take effect.
+
+Verify after redeploy:
+  curl -sS "<BASE_URL>/api/workflow/env-health" | jq .
+
+See: docs/qa/cycle-005-hosted-persistence-evidence-preflight.md
+See: docs/devops/cycle-005-hosted-runtime-env-vars.md
+See: docs/devops/cycle-005-vercel-env-sync-and-redeploy.md
+
+If you are unsure which host is serving the app:
+  - Your correct BASE_URL must return 200 JSON from: GET <BASE_URL>/api/workflow/env-health
+  - Marketing/static sites typically return HTML (not JSON) or 404 for /api/workflow/*
+
+Note:
+  - GitHub Actions secrets do not configure the hosted runtime; they are fallback-only.
+
+If you cannot probe from this machine (network/VPN), re-run with: --no-local-probe
+preflight_exit=2

@@ -1,0 +1,57 @@
+Using BASE_URL candidates source: env:BASE_URL_CANDIDATES
+Probing: https://security-questionnaire-autopilot-hosted-git-main-junhengz.vercel.app/api/workflow/env-health
+Probing: https://security-questionnaire-autopilot-git-main-junhengz.vercel.app/api/workflow/env-health
+Probing: https://auto-company-git-main-junhengz.vercel.app/api/workflow/env-health
+Probing: https://security-questionnaire-autopilot-hosted-git-main-nicepkg.vercel.app/api/workflow/env-health
+Probing: https://security-questionnaire-autopilot-git-main-nicepkg.vercel.app/api/workflow/env-health
+Probing: https://auto-company-git-main-nicepkg.vercel.app/api/workflow/env-health
+Probing: https://security-questionnaire-autopilot-hosted.vercel.app/api/workflow/env-health
+Probing: https://security-questionnaire-autopilot.vercel.app/api/workflow/env-health
+Probing: https://auto-company.vercel.app/api/workflow/env-health
+Probing: https://security-questionnaire-autopilot-hosted.pages.dev/api/workflow/env-health
+curl: (6) Could not resolve host: security-questionnaire-autopilot-hosted.pages.dev
+Probing: https://security-questionnaire-autopilot.pages.dev/api/workflow/env-health
+curl: (6) Could not resolve host: security-questionnaire-autopilot.pages.dev
+Probing: https://auto-company.pages.dev/api/workflow/env-health
+Probing: https://auto-company-hosted.pages.dev/api/workflow/env-health
+curl: (6) Could not resolve host: auto-company-hosted.pages.dev
+Error: no valid hosted Next.js runtime BASE_URL found.
+Probe requirements: GET <BASE_URL>/api/workflow/env-health -> { ok:true, env:{ NEXT_PUBLIC_SUPABASE_URL:true, SUPABASE_SERVICE_ROLE_KEY:true } }
+
+Failures:
+  - https://security-questionnaire-autopilot-hosted-git-main-junhengz.vercel.app -> env-health HTTP 404
+  - https://security-questionnaire-autopilot-git-main-junhengz.vercel.app -> env-health HTTP 404
+  - https://auto-company-git-main-junhengz.vercel.app -> env-health HTTP 404
+  - https://security-questionnaire-autopilot-hosted-git-main-nicepkg.vercel.app -> env-health HTTP 404
+  - https://security-questionnaire-autopilot-git-main-nicepkg.vercel.app -> env-health HTTP 404
+  - https://auto-company-git-main-nicepkg.vercel.app -> env-health HTTP 404
+  - https://security-questionnaire-autopilot-hosted.vercel.app -> env-health HTTP 404
+  - https://security-questionnaire-autopilot.vercel.app -> env-health HTTP 404
+  - https://auto-company.vercel.app -> env-health HTTP 404
+  - https://security-questionnaire-autopilot-hosted.pages.dev -> env-health HTTP 000000
+  - https://security-questionnaire-autopilot.pages.dev -> env-health HTTP 000000
+  - https://auto-company.pages.dev -> env-health not JSON (content-type: text/html; charset=utf-8) body_sniff='<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-s'
+  - https://auto-company-hosted.pages.dev -> env-health HTTP 000000
+
+Fixes (most common):
+1) BASE_URL is wrong (marketing/static domain, not the Next.js workflow API runtime).
+   BASE_URL must be the deployed app origin that serves /api/workflow/*.
+   Tip: run the probe table to compare candidates:
+     ./projects/security-questionnaire-autopilot/scripts/probe-hosted-base-url-candidates.sh "https://c1 https://c2"
+
+2) Hosted runtime is reachable but missing Supabase env vars (env-health shows false booleans).
+   Set these on the hosting provider for the deployed runtime, then redeploy:
+     - NEXT_PUBLIC_SUPABASE_URL
+     - SUPABASE_SERVICE_ROLE_KEY
+
+   Where to set them:
+     - Vercel: Project -> Settings -> Environment Variables (Production at minimum), then redeploy
+     - Cloudflare Pages: Project -> Settings -> Environment variables (Production), then trigger a new deployment
+
+   Note: GitHub Actions secrets do NOT configure the hosted runtime unless your deployment pipeline maps them.
+
+Docs:
+  - docs/qa/cycle-005-hosted-persistence-evidence-preflight.md
+  - docs/devops/base-url-discovery.md
+  - docs/devops/cycle-005-hosted-runtime-env-vars.md
+  - docs/operations/cycle-005-hosted-runtime-env-vars.md

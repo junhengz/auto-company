@@ -1,0 +1,55 @@
+Cycle 013 local selftest: hosted BASE_URL discovery scripts
+Date: 2026-02-14
+Branch: cycle-008-hosting-discovery-v2
+
+Started servers:
+- good:  http://127.0.0.1:18080
+- html:  http://127.0.0.1:18081
+- noenv: http://127.0.0.1:18082
+
+## 1) probe-hosted-base-url-candidates.sh
+candidate_base_url  http  ok  supabase_url  service_role  note
+http://127.0.0.1:18081  200  -  -  -  Content-Type: text/html; charset=utf-8 body_head='<html><body>not json</body></html>'
+http://127.0.0.1:18080  200  true  true  true  
+http://127.0.0.1:18082  200  true  -  -  
+
+## 2) discover-hosted-base-url.sh selects JSON runtime, rejects HTML
+Probing: http://127.0.0.1:18081/api/workflow/env-health
+Probing: http://127.0.0.1:18080/api/workflow/env-health
+http://127.0.0.1:18080
+
+## 3) discover-hosted-base-url.sh rejects missing Supabase env by default
+Probing: http://127.0.0.1:18082/api/workflow/env-health
+Error: no valid hosted Next.js runtime BASE_URL found.
+Probe requirements: GET <BASE_URL>/api/workflow/env-health -> { ok:true, env:{ NEXT_PUBLIC_SUPABASE_URL:true, SUPABASE_SERVICE_ROLE_KEY:true } }
+
+Failures:
+  - http://127.0.0.1:18082 -> hosted runtime reachable but missing Supabase env vars (set NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY on hosting provider, then redeploy)
+
+Fixes (most common):
+1) BASE_URL is wrong (marketing/static domain, not the Next.js workflow API runtime).
+   BASE_URL must be the deployed app origin that serves /api/workflow/*.
+   Tip: run the probe table to compare candidates:
+     ./projects/security-questionnaire-autopilot/scripts/probe-hosted-base-url-candidates.sh "https://c1 https://c2"
+
+2) Hosted runtime is reachable but missing Supabase env vars (env-health shows false booleans).
+   Set these on the hosting provider for the deployed runtime, then redeploy:
+     - NEXT_PUBLIC_SUPABASE_URL
+     - SUPABASE_SERVICE_ROLE_KEY
+
+   Where to set them:
+     - Vercel: Project -> Settings -> Environment Variables (Production at minimum), then redeploy
+     - Cloudflare Pages: Project -> Settings -> Environment variables (Production), then trigger a new deployment
+
+   Note: GitHub Actions secrets do NOT configure the hosted runtime unless your deployment pipeline maps them.
+
+Docs:
+  - docs/qa/cycle-005-hosted-persistence-evidence-preflight.md
+  - docs/devops/base-url-discovery.md
+  - docs/devops/cycle-005-hosted-runtime-env-vars.md
+  - docs/operations/cycle-005-hosted-runtime-env-vars.md
+exit_code=2
+
+## 4) ALLOW_MISSING_SUPABASE_ENV=1 accepts runtime even if env missing
+Probing: http://127.0.0.1:18082/api/workflow/env-health
+http://127.0.0.1:18082

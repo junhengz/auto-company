@@ -1,0 +1,30 @@
+{
+  "checked_at_utc": "2026-02-14T04:25:14Z",
+  "repo": "junhengz/auto-company",
+  "run_id": 22011105800,
+  "artifact": "cycle-005-postgres-service-apply-verify",
+  "dest": "/home/zjohn/autocomp/auto-company/docs/cto-vogels/cycle-005/postgres-service-apply-verify/evidence/artifacts/run-22011105800",
+  "files": [
+    "supabase-verify.json"
+  ],
+  "extracted": {
+    "supabase_verify": {
+      "src": "/home/zjohn/autocomp/auto-company/docs/cto-vogels/cycle-005/postgres-service-apply-verify/evidence/artifacts/run-22011105800/supabase-verify.json",
+      "dst": "/home/zjohn/autocomp/auto-company/docs/cto-vogels/cycle-005/postgres-service-apply-verify/evidence/supabase-verify-run-22011105800.json",
+      "present": true
+    },
+    "connection_hints": {
+      "src": "",
+      "dst": "/home/zjohn/autocomp/auto-company/docs/cto-vogels/cycle-005/postgres-service-apply-verify/evidence/supabase-connection-nonsecret-run-22011105800.txt",
+      "present": false
+    },
+    "provision_summary": {
+      "src": "",
+      "dst": "/home/zjohn/autocomp/auto-company/docs/cto-vogels/cycle-005/postgres-service-apply-verify/evidence/supabase-provision-summary-run-22011105800.json",
+      "present": false
+    }
+  },
+  "copied": [
+    "/home/zjohn/autocomp/auto-company/docs/cto-vogels/cycle-005/postgres-service-apply-verify/evidence/supabase-verify-run-22011105800.json"
+  ]
+}

@@ -8,8 +8,8 @@ on:
         type: boolean
         required: true
         default: false
-      persist_base_url_candidates:
-        description: "If true, persist the provided base_url/base_url_candidates into repo variable HOSTED_WORKFLOW_BASE_URL_CANDIDATES (formatted + de-duplicated). Use this to set candidates once, then leave base_url empty on future runs."
+      persist_hosted_workflow_base_url:
+        description: "If true, persist workflow_dispatch input base_url into repo variable HOSTED_WORKFLOW_BASE_URL (after validation/normalization). This is the canonical hosted BASE_URL used by CI."
         type: boolean
         required: true
         default: false
@@ -25,11 +25,7 @@ on:
         required: true
         default: false
       base_url:
-        description: "Optional: 2-4 candidate BASE_URLs (comma/space/newline separated). If empty, uses repo variable HOSTED_WORKFLOW_BASE_URL_CANDIDATES (recommended), then falls back to legacy vars (CYCLE_005_BASE_URL_CANDIDATES, HOSTED_BASE_URL_CANDIDATES, WORKFLOW_APP_BASE_URL_CANDIDATES), then GitHub Deployments discovery (if present). Candidates must be the deployed Next.js app serving /api/workflow/* (not marketing/static site)."
-        required: false
-        default: ""
-      base_url_candidates:
-        description: "Alias for base_url (same semantics). Prefer setting repo variable HOSTED_WORKFLOW_BASE_URL_CANDIDATES once instead of providing input every run."
+        description: "Optional override BASE_URL (single origin). If empty, uses repo variable HOSTED_WORKFLOW_BASE_URL. BASE_URL must be the deployed Next.js workflow runtime that serves /api/workflow/* (not a marketing/static site)."
         required: false
         default: ""
       run_id:
@@ -87,10 +83,9 @@ jobs:
       # Reason: treating env vars as booleans can still be ambiguous due to truthiness of "false".
       INPUT_PREFLIGHT_ONLY: ${{ (github.event_name == 'workflow_dispatch' && (github.event.inputs.preflight_only == true || github.event.inputs.preflight_only == 'true')) && 'true' || 'false' }}
       INPUT_LOCAL_RUNTIME: ${{ (github.event_name == 'workflow_dispatch' && (github.event.inputs.local_runtime == true || github.event.inputs.local_runtime == 'true')) && 'true' || 'false' }}
-      INPUT_PERSIST_BASE_URL_CANDIDATES: ${{ (github.event_name == 'workflow_dispatch' && (github.event.inputs.persist_base_url_candidates == true || github.event.inputs.persist_base_url_candidates == 'true')) && 'true' || 'false' }}
       INPUT_ENABLE_AUTORUN_AFTER_PREFLIGHT: ${{ (github.event_name == 'workflow_dispatch' && (github.event.inputs.enable_autorun_after_preflight == true || github.event.inputs.enable_autorun_after_preflight == 'true')) && 'true' || 'false' }}
       INPUT_BASE_URL: ${{ github.event.inputs.base_url || '' }}
-      INPUT_BASE_URL_CANDIDATES: ${{ github.event.inputs.base_url_candidates || '' }}
+      INPUT_PERSIST_HOSTED_WORKFLOW_BASE_URL: ${{ (github.event_name == 'workflow_dispatch' && (github.event.inputs.persist_hosted_workflow_base_url == true || github.event.inputs.persist_hosted_workflow_base_url == 'true')) && 'true' || 'false' }}
       INPUT_RUN_ID: ${{ github.event.inputs.run_id || '' }}
       INPUT_SKIP_SQL_APPLY: ${{ (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_sql_apply == true || github.event.inputs.skip_sql_apply == 'true') && 'true' || 'false' }}
       INPUT_PREFLIGHT_REQUIRE_SUPABASE_HEALTH: ${{ (github.event_name != 'workflow_dispatch' || github.event.inputs.preflight_require_supabase_health == true || github.event.inputs.preflight_require_supabase_health == 'true') && 'true' || 'false' }}
@@ -115,34 +110,69 @@ jobs:
           echo "Fix: re-run with skip_sql_apply=true (default), or run a full evidence run with preflight_only=false if you intend to apply SQL." >&2
           exit 2
 
-      - name: Persist BASE_URL candidates to repo variable (optional; workflow_dispatch only)
-        if: ${{ github.event_name == 'workflow_dispatch' && env.INPUT_PERSIST_BASE_URL_CANDIDATES == 'true' && (env.INPUT_BASE_URL != '' || env.INPUT_BASE_URL_CANDIDATES != '') }}
+      - name: Gate scheduled runs (repo variable CYCLE_005_AUTORUN_ENABLED)
+        id: gate
+        env:
+          CYCLE_005_AUTORUN_ENABLED: ${{ vars.CYCLE_005_AUTORUN_ENABLED }}
+        run: |
+          set -euo pipefail
+          mkdir -p preflight
+
+          if [ "${GITHUB_EVENT_NAME:-}" = "schedule" ] && [ "${CYCLE_005_AUTORUN_ENABLED:-}" != "true" ]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            printf '%s\n' "scheduled run gated (set repo variable CYCLE_005_AUTORUN_ENABLED=true to enable)" > preflight/gate.txt
+            {
+              echo "## Cycle 005 Hosted Persistence Evidence"
+              echo ""
+              echo "- status: skipped (schedule gated)"
+              echo "- action_required: set repo variable CYCLE_005_AUTORUN_ENABLED=true to enable scheduled evidence runs"
+              echo "- example:"
+              echo "  - \`gh variable set CYCLE_005_AUTORUN_ENABLED -R ${GITHUB_REPOSITORY} --body true\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "should_run=true" >> "$GITHUB_OUTPUT"
+
+      - name: Persist canonical HOSTED_WORKFLOW_BASE_URL (optional; workflow_dispatch only)
+        if: ${{ github.event_name == 'workflow_dispatch' && env.INPUT_PERSIST_HOSTED_WORKFLOW_BASE_URL == 'true' && env.INPUT_BASE_URL != '' && env.INPUT_LOCAL_RUNTIME != 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RAW_CANDIDATES: ${{ env.INPUT_BASE_URL || env.INPUT_BASE_URL_CANDIDATES }}
+          RAW_BASE_URL: ${{ env.INPUT_BASE_URL }}
         run: |
           set -euo pipefail
 
           mkdir -p preflight
 
-          var_name="HOSTED_WORKFLOW_BASE_URL_CANDIDATES"
-          raw="${RAW_CANDIDATES:-}"
-          printf '%s\n' "$raw" > preflight/input-base-url-candidates.raw.txt
+          var_name="HOSTED_WORKFLOW_BASE_URL"
+          raw="${RAW_BASE_URL:-}"
+          printf '%s\n' "$raw" > preflight/input-hosted-workflow-base-url.raw.txt
 
-          formatted="$(
+          # Guardrail: refuse to persist disallowed origins (tunnels).
+          ./projects/security-questionnaire-autopilot/scripts/validate-base-url-candidates.sh --validate-only \
+            "$raw" >/dev/null
+
+          # Normalize to a single origin and ensure exactly one token.
+          printf '%s\n' "$raw" > preflight/input-hosted-workflow-base-url.normalize-input.txt
+          normalized="$(
             ./projects/security-questionnaire-autopilot/scripts/format-base-url-candidates.sh \
-              preflight/input-base-url-candidates.raw.txt
+              preflight/input-hosted-workflow-base-url.normalize-input.txt
           )"
-          printf '%s\n' "$formatted" > preflight/input-base-url-candidates.formatted.txt
+          printf '%s\n' "$normalized" > preflight/input-hosted-workflow-base-url.normalized.txt
+          count="$(printf '%s\n' "$normalized" | tr ' ' '\n' | sed '/^$/d' | wc -l | tr -d ' ')"
+          if [ "${count:-0}" != "1" ]; then
+            echo "base_url must contain exactly 1 origin when persist_hosted_workflow_base_url=true; got: $normalized" >&2
+            exit 2
+          fi
 
-          payload="$(jq -nc --arg name "$var_name" --arg value "$formatted" '{name:$name,value:$value}')"
+          payload="$(jq -nc --arg name "$var_name" --arg value "$normalized" '{name:$name,value:$value}')"
 
           update_url="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/variables/${var_name}"
           create_url="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/variables"
 
           # Upsert behavior: PATCH if it exists, otherwise POST create.
           code="$(
-            curl -sS -o preflight/github-api.actions-variables.patch.json -w "%{http_code}" \
+            curl -sS -o preflight/github-api.actions-variables.hosted-base-url.patch.json -w "%{http_code}" \
               -X PATCH \
               -H "Accept: application/vnd.github+json" \
               -H "Authorization: Bearer ${GITHUB_TOKEN}" \
@@ -153,7 +183,7 @@ jobs:
 
           if [ "$code" = "404" ]; then
             code="$(
-              curl -sS -o preflight/github-api.actions-variables.post.json -w "%{http_code}" \
+              curl -sS -o preflight/github-api.actions-variables.hosted-base-url.post.json -w "%{http_code}" \
                 -X POST \
                 -H "Accept: application/vnd.github+json" \
                 -H "Authorization: Bearer ${GITHUB_TOKEN}" \
@@ -165,13 +195,12 @@ jobs:
 
           if [ "$code" != "201" ] && [ "$code" != "204" ]; then
             echo "Failed to upsert repo variable ${var_name} (HTTP $code)." >&2
-            echo "Fallback: set it manually via Settings -> Secrets and variables -> Actions -> Variables." >&2
             exit 2
           fi
 
           {
             echo "- persisted_repo_variable: \`${var_name}\`"
-            echo "- persisted_candidates_source: \`workflow_dispatch input (base_url/base_url_candidates)\`"
+            echo "- persisted_base_url_source: \`workflow_dispatch input (base_url)\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: "Setup Node (local runtime)"
@@ -196,7 +225,6 @@ jobs:
           # Note: $GITHUB_ENV affects subsequent steps (including their `env:` expressions).
           {
             echo "INPUT_BASE_URL=${BASE_URL}"
-            echo "INPUT_BASE_URL_CANDIDATES="
           } >> "$GITHUB_ENV"
 
           # Set required env vars so /api/workflow/env-health shows both booleans true.
@@ -229,168 +257,79 @@ jobs:
           fi
           jq -e '.ok == true' "$out" >/dev/null
 
-      - name: Assemble + probe deployed BASE_URL candidates (always)
-        id: basecands
+      - name: Resolve + validate BASE_URL (fail-fast)
+        id: baseurl
+        if: ${{ steps.gate.outputs.should_run == 'true' }}
         env:
-          BASE_URL_CANDIDATES: ${{ env.INPUT_BASE_URL || env.INPUT_BASE_URL_CANDIDATES }}
-          # For scheduled runs, require an explicit opt-in to avoid repeated evidence runs / PR spam.
-          CYCLE_005_AUTORUN_ENABLED: ${{ vars.CYCLE_005_AUTORUN_ENABLED }}
-          HOSTED_WORKFLOW_BASE_URL_CANDIDATES: ${{ vars.HOSTED_WORKFLOW_BASE_URL_CANDIDATES }}
-          CYCLE_005_BASE_URL_CANDIDATES: ${{ vars.CYCLE_005_BASE_URL_CANDIDATES }}
-          HOSTED_BASE_URL_CANDIDATES: ${{ vars.HOSTED_BASE_URL_CANDIDATES }}
-          WORKFLOW_APP_BASE_URL_CANDIDATES: ${{ vars.WORKFLOW_APP_BASE_URL_CANDIDATES }}
-          # Optional hosting API discovery (best-effort):
-          # - Vercel
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-          VERCEL_PROJECT: ${{ vars.VERCEL_PROJECT }}
-          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
-          VERCEL_TEAM_SLUG: ${{ vars.VERCEL_TEAM_SLUG }}
-          # - Cloudflare Pages
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          CF_PAGES_PROJECT: ${{ vars.CF_PAGES_PROJECT }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOSTED_WORKFLOW_BASE_URL: ${{ vars.HOSTED_WORKFLOW_BASE_URL }}
         run: |
           set -euo pipefail
 
           mkdir -p preflight
 
-          if [ "${GITHUB_EVENT_NAME:-}" = "schedule" ] && [ "${CYCLE_005_AUTORUN_ENABLED:-}" != "true" ]; then
-            echo "has_candidates=false" >> "$GITHUB_OUTPUT"
-            printf '%s\n' "" > preflight/base-url-candidates.txt
-            printf '%s\n' "scheduled run gated (set repo variable CYCLE_005_AUTORUN_ENABLED=true to enable)" > preflight/base-url-source.txt
-            printf '%s\n' "Skipping scheduled Cycle 005 run because CYCLE_005_AUTORUN_ENABLED is not true." > preflight/base-url-probe.txt
+          base="${INPUT_BASE_URL:-}"
+          source="workflow_dispatch input base_url"
+
+          if [ "${INPUT_LOCAL_RUNTIME:-false}" = "true" ] && [ -n "${base:-}" ]; then
+            source="local_runtime (ephemeral inside this GHA run)"
+          elif [ -z "${base:-}" ]; then
+            base="${HOSTED_WORKFLOW_BASE_URL:-}"
+            source="repo variable HOSTED_WORKFLOW_BASE_URL"
+          fi
+
+          if [ -z "${base:-}" ]; then
+            echo "Missing BASE_URL." >&2
+            echo "" >&2
+            echo "Fix: set repo variable HOSTED_WORKFLOW_BASE_URL to the deployed Next.js workflow runtime origin." >&2
+            echo "Expected: GET <BASE_URL>/api/workflow/env-health returns 200 JSON ok=true." >&2
             {
               echo "## Cycle 005 Hosted Persistence Evidence"
               echo ""
-              echo "- status: skipped (schedule gated)"
-              echo "- action_required: set repo variable CYCLE_005_AUTORUN_ENABLED=true to enable scheduled evidence runs"
+              echo "- status: missing HOSTED_WORKFLOW_BASE_URL"
+              echo "- action_required: set repo variable \`HOSTED_WORKFLOW_BASE_URL\`"
               echo "- example:"
-              echo "  - \`gh variable set CYCLE_005_AUTORUN_ENABLED -R ${GITHUB_REPOSITORY} --body true\`"
+              echo "  - \`gh variable set HOSTED_WORKFLOW_BASE_URL -R ${GITHUB_REPOSITORY} --body https://<your-runtime-origin>\`"
             } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          # Mirror select-hosted-base-url.sh precedence so the probe output matches selection behavior.
-          candidate_source=""
-          candidates=""
-          if [ -n "${BASE_URL_CANDIDATES:-}" ]; then
-            candidate_source="workflow_dispatch input (base_url/base_url_candidates)"
-            candidates="${BASE_URL_CANDIDATES}"
-          elif [ -n "${HOSTED_WORKFLOW_BASE_URL_CANDIDATES:-}" ]; then
-            candidate_source="repo variable HOSTED_WORKFLOW_BASE_URL_CANDIDATES"
-            candidates="${HOSTED_WORKFLOW_BASE_URL_CANDIDATES}"
-          elif [ -n "${CYCLE_005_BASE_URL_CANDIDATES:-}" ]; then
-            candidate_source="repo variable CYCLE_005_BASE_URL_CANDIDATES (legacy)"
-            candidates="${CYCLE_005_BASE_URL_CANDIDATES}"
-          elif [ -n "${HOSTED_BASE_URL_CANDIDATES:-}" ]; then
-            candidate_source="repo variable HOSTED_BASE_URL_CANDIDATES (legacy)"
-            candidates="${HOSTED_BASE_URL_CANDIDATES}"
-          elif [ -n "${WORKFLOW_APP_BASE_URL_CANDIDATES:-}" ]; then
-            candidate_source="repo variable WORKFLOW_APP_BASE_URL_CANDIDATES (legacy)"
-            candidates="${WORKFLOW_APP_BASE_URL_CANDIDATES}"
-          else
-            candidate_source="hosting API / GitHub Deployments discovery (best-effort)"
-            # Prefer provider APIs first (fresher, aliases), but also append GitHub Deployments metadata
-            # as a best-effort supplemental source.
-            hosting_candidates="$(
-              ./projects/security-questionnaire-autopilot/scripts/collect-base-url-candidates-from-hosting.sh \
-                | tr '\n' ' ' | tr -s ' ' | sed 's/^ *//; s/ *$//' || true
-            )"
-            github_candidates="$(
-              ./projects/security-questionnaire-autopilot/scripts/collect-base-url-candidates-from-github-deployments.sh \
-                | tr '\n' ' ' | tr -s ' ' | sed 's/^ *//; s/ *$//' || true
-            )"
-            candidates="$(
-              printf '%s %s\n' "${hosting_candidates:-}" "${github_candidates:-}" \
-                | tr -s ' ' | sed 's/^ *//; s/ *$//'
-            )"
-          fi
-
-          printf '%s\n' "${candidates:-}" > preflight/base-url-candidates.txt
-          printf '%s\n' "${candidate_source:-}" > preflight/base-url-source.txt
-          if [ -n "${candidates:-}" ]; then
-            echo "has_candidates=true" >> "$GITHUB_OUTPUT"
-            ./projects/security-questionnaire-autopilot/scripts/probe-hosted-base-url-candidates.sh "${candidates}" \
-              | tee preflight/base-url-probe.txt
-          else
-            echo "has_candidates=false" >> "$GITHUB_OUTPUT"
-            printf '%s\n' "No BASE_URL candidates available after discovery." > preflight/base-url-probe.txt
-            {
-              echo "## Cycle 005 Hosted Persistence Evidence"
-              echo ""
-              echo "- status: no BASE_URL candidates"
-              echo "- action_required: set repo variable HOSTED_WORKFLOW_BASE_URL_CANDIDATES to 2-4 deployed origins"
-              echo "- example:"
-              echo "  - \`gh variable set HOSTED_WORKFLOW_BASE_URL_CANDIDATES -R ${GITHUB_REPOSITORY} --body \"https://app-1.example.com https://app-2.example.com\"\`"
-            } >> "$GITHUB_STEP_SUMMARY"
-
-            # Once schedule is enabled (CYCLE_005_AUTORUN_ENABLED=true), misconfiguration should be loud.
-            # For manual runs (workflow_dispatch), always fail so the operator gets an unambiguous red/green signal.
-            if [ "${GITHUB_EVENT_NAME:-}" = "workflow_dispatch" ] || [ "${GITHUB_EVENT_NAME:-}" = "schedule" ]; then
-              echo "Missing BASE_URL candidates; failing run." >&2
-              exit 2
-            fi
-          fi
-
-      - name: Upload BASE_URL probe artifacts (always)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cycle-005-hosted-base-url-probe
-          if-no-files-found: warn
-          path: |
-            preflight/base-url-candidates.txt
-            preflight/base-url-source.txt
-            preflight/base-url-probe.txt
-
-      - name: Select + validate deployed BASE_URL (fail-fast)
-        id: baseurl
-        if: ${{ steps.basecands.outputs.has_candidates == 'true' }}
-        run: |
-          set -euo pipefail
-
-          candidates="$(cat preflight/base-url-candidates.txt 2>/dev/null || true)"
-          candidates="$(printf '%s' "$candidates" | tr '\n' ' ' | tr -s ' ' | sed 's/^ *//; s/ *$//')"
-          export BASE_URL_CANDIDATES="${candidates:-}"
-          export ALLOW_MISSING_SUPABASE_ENV=1
-
-          set +e
-          BASE_URL="$(./projects/security-questionnaire-autopilot/scripts/select-hosted-base-url.sh 2>preflight/select-base-url.err)"
-          rc="$?"
-          set -e
-          if [ "$rc" != "0" ] || [ -z "${BASE_URL:-}" ]; then
-            echo "Failed to select a valid hosted BASE_URL from candidates." >&2
-            echo "" >&2
-            echo "Candidate source:" >&2
-            cat preflight/base-url-source.txt >&2 || true
-            echo "" >&2
-            echo "Probe report:" >&2
-            cat preflight/base-url-probe.txt >&2 || true
-            echo "" >&2
-            echo "Selector error:" >&2
-            cat preflight/select-base-url.err >&2 || true
-            echo "" >&2
-            echo "Fix:" >&2
-            echo "  - Set repo variable HOSTED_WORKFLOW_BASE_URL_CANDIDATES to 2-4 candidate origins" >&2
-            echo "  - Ensure the deployed runtime serves /api/workflow/env-health" >&2
             exit 2
           fi
-          echo "Selected BASE_URL: $BASE_URL"
-          echo "base_url=$BASE_URL" >> "$GITHUB_OUTPUT"
 
-          candidate_source="$(cat preflight/base-url-source.txt 2>/dev/null || true)"
+          # Guardrail: refuse to run against ephemeral tunnel origins.
+          ./projects/security-questionnaire-autopilot/scripts/validate-base-url-candidates.sh --validate-only \
+            "$base" >/dev/null
+
+          printf '%s\n' "$base" > preflight/base-url.raw.txt
+          printf '%s\n' "$source" > preflight/base-url-source.txt
+
+          export ALLOW_MISSING_SUPABASE_ENV=1
+          # Canonical policy: one (1) origin only; no candidate scanning / selection.
+          resolved="$(./projects/security-questionnaire-autopilot/scripts/resolve-hosted-workflow-base-url.sh "$base" 2>preflight/select-base-url.err)"
+          printf '%s\n' "$resolved" > preflight/base-url.txt
+
+          echo "base_url=$resolved" >> "$GITHUB_OUTPUT"
+
           {
             echo "## Cycle 005 Hosted Persistence Evidence"
             echo ""
-            echo "- Selected BASE_URL: \`$BASE_URL\`"
-            echo "- Candidate source: \`${candidate_source:-unknown}\`"
+            echo "- Selected BASE_URL: \`$resolved\`"
+            echo "- BASE_URL source: \`$source\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload BASE_URL artifacts (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cycle-005-base-url
+          if-no-files-found: warn
+          path: |
+            preflight/gate.txt
+            preflight/base-url.raw.txt
+            preflight/base-url-source.txt
+            preflight/base-url.txt
+            preflight/select-base-url.err
 
       - name: "Preflight: env-health (capture)"
         id: envhealth
-        if: ${{ steps.basecands.outputs.has_candidates == 'true' }}
+        if: ${{ steps.gate.outputs.should_run == 'true' }}
         env:
           BASE_URL: ${{ steps.baseurl.outputs.base_url }}
         run: |
@@ -419,7 +358,7 @@ jobs:
 
       - name: "Auto-fix (Vercel): upsert Supabase env vars + redeploy (best-effort)"
         # Note: `secrets.*` is not allowed in `if:` expressions. Do token/id gating inside the step.
-        if: ${{ steps.basecands.outputs.has_candidates == 'true' && env.INPUT_ATTEMPT_VERCEL_ENV_SYNC == 'true' && steps.envhealth.outputs.has_env != 'true' }}
+        if: ${{ steps.gate.outputs.should_run == 'true' && env.INPUT_ATTEMPT_VERCEL_ENV_SYNC == 'true' && steps.envhealth.outputs.has_env != 'true' }}
         env:
           BASE_URL: ${{ steps.baseurl.outputs.base_url }}
           # Vercel auth / scope
@@ -457,7 +396,7 @@ jobs:
 
       - name: "Auto-fix (Cloudflare Pages): upsert Supabase env vars (+ optional deploy hook) (best-effort)"
         # Note: `secrets.*` is not allowed in `if:` expressions. Do token/id gating inside the step.
-        if: ${{ steps.basecands.outputs.has_candidates == 'true' && env.INPUT_ATTEMPT_CLOUDFLARE_PAGES_ENV_SYNC == 'true' && steps.envhealth.outputs.has_env != 'true' && contains(steps.baseurl.outputs.base_url, 'pages.dev') }}
+        if: ${{ steps.gate.outputs.should_run == 'true' && env.INPUT_ATTEMPT_CLOUDFLARE_PAGES_ENV_SYNC == 'true' && steps.envhealth.outputs.has_env != 'true' && contains(steps.baseurl.outputs.base_url, 'pages.dev') }}
         env:
           BASE_URL: ${{ steps.baseurl.outputs.base_url }}
           # Cloudflare Pages auth / scope
@@ -490,7 +429,7 @@ jobs:
           curl -sS -m 12 "$BASE_URL/api/workflow/env-health" > preflight/env-health.after-redeploy.json || true
 
       - name: "Preflight: env-health (enforce)"
-        if: ${{ steps.basecands.outputs.has_candidates == 'true' }}
+        if: ${{ steps.gate.outputs.should_run == 'true' }}
         env:
           BASE_URL: ${{ steps.baseurl.outputs.base_url }}
         run: |
@@ -516,7 +455,7 @@ jobs:
           fi
 
       - name: "Preflight: supabase-health (env + schema + seed) (only when skip_sql_apply=true)"
-        if: ${{ steps.basecands.outputs.has_candidates == 'true' && env.INPUT_SKIP_SQL_APPLY == 'true' && env.INPUT_PREFLIGHT_REQUIRE_SUPABASE_HEALTH == 'true' && env.INPUT_LOCAL_RUNTIME != 'true' }}
+        if: ${{ steps.gate.outputs.should_run == 'true' && env.INPUT_SKIP_SQL_APPLY == 'true' && env.INPUT_PREFLIGHT_REQUIRE_SUPABASE_HEALTH == 'true' && env.INPUT_LOCAL_RUNTIME != 'true' }}
         env:
           BASE_URL: ${{ steps.baseurl.outputs.base_url }}
         run: |
@@ -542,70 +481,6 @@ jobs:
             echo "- schema_actual: \`$actual\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: "Persist BASE_URL candidates from discovery (optional; workflow_dispatch only)"
-        # Self-healing loop: if the operator set persist_base_url_candidates=true but did NOT pass
-        # base_url/base_url_candidates explicitly, persist whatever discovery produced (after a green preflight).
-        if: ${{ github.event_name == 'workflow_dispatch' && steps.basecands.outputs.has_candidates == 'true' && env.INPUT_PERSIST_BASE_URL_CANDIDATES == 'true' && env.INPUT_BASE_URL == '' && env.INPUT_BASE_URL_CANDIDATES == '' && env.INPUT_LOCAL_RUNTIME != 'true' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          mkdir -p preflight
-
-          var_name="HOSTED_WORKFLOW_BASE_URL_CANDIDATES"
-          raw="$(cat preflight/base-url-candidates.txt 2>/dev/null || true)"
-          printf '%s\n' "$raw" > preflight/discovered-base-url-candidates.raw.txt
-
-          formatted="$(
-            ./projects/security-questionnaire-autopilot/scripts/format-base-url-candidates.sh \
-              preflight/discovered-base-url-candidates.raw.txt
-          )"
-          printf '%s\n' "$formatted" > preflight/discovered-base-url-candidates.formatted.txt
-
-          if [ -z "${formatted:-}" ]; then
-            echo "Refusing to persist empty ${var_name} from discovery output." >&2
-            exit 2
-          fi
-
-          payload="$(jq -nc --arg name "$var_name" --arg value "$formatted" '{name:$name,value:$value}')"
-
-          update_url="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/variables/${var_name}"
-          create_url="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/variables"
-
-          code="$(
-            curl -sS -o preflight/github-api.actions-variables.persist-discovery.patch.json -w "%{http_code}" \
-              -X PATCH \
-              -H "Accept: application/vnd.github+json" \
-              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "$update_url" \
-              -d "$payload" || echo "000"
-          )"
-
-          if [ "$code" = "404" ]; then
-            code="$(
-              curl -sS -o preflight/github-api.actions-variables.persist-discovery.post.json -w "%{http_code}" \
-                -X POST \
-                -H "Accept: application/vnd.github+json" \
-                -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                "$create_url" \
-                -d "$payload" || echo "000"
-            )"
-          fi
-
-          if [ "$code" != "201" ] && [ "$code" != "204" ]; then
-            echo "Failed to upsert repo variable ${var_name} from discovery (HTTP $code)." >&2
-            exit 2
-          fi
-
-          {
-            echo ""
-            echo "- persisted_repo_variable: \`${var_name}\`"
-            echo "- persisted_candidates_source: \`discovery (preflight/base-url-candidates.txt)\`"
-          } >> "$GITHUB_STEP_SUMMARY"
-
       - name: Upload preflight artifacts (always)
         if: always()
         uses: actions/upload-artifact@v4
@@ -613,18 +488,11 @@ jobs:
           name: cycle-005-hosted-preflight
           if-no-files-found: warn
           path: |
-            preflight/base-url-candidates.txt
+            preflight/gate.txt
+            preflight/base-url.raw.txt
             preflight/base-url-source.txt
-            preflight/base-url-probe.txt
+            preflight/base-url.txt
             preflight/select-base-url.err
-            preflight/input-base-url-candidates.raw.txt
-            preflight/input-base-url-candidates.formatted.txt
-            preflight/discovered-base-url-candidates.raw.txt
-            preflight/discovered-base-url-candidates.formatted.txt
-            preflight/github-api.actions-variables.patch.json
-            preflight/github-api.actions-variables.post.json
-            preflight/github-api.actions-variables.persist-discovery.patch.json
-            preflight/github-api.actions-variables.persist-discovery.post.json
             preflight/github-api.actions-variables.autorun.patch.json
             preflight/github-api.actions-variables.autorun.post.json
             preflight/env-health.json
@@ -632,7 +500,7 @@ jobs:
             preflight/supabase-health.json
 
       - name: Enable scheduled autorun gate after green preflight (optional; workflow_dispatch only)
-        if: ${{ github.event_name == 'workflow_dispatch' && steps.basecands.outputs.has_candidates == 'true' && env.INPUT_PREFLIGHT_ONLY == 'true' && env.INPUT_ENABLE_AUTORUN_AFTER_PREFLIGHT == 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && steps.gate.outputs.should_run == 'true' && env.INPUT_PREFLIGHT_ONLY == 'true' && env.INPUT_ENABLE_AUTORUN_AFTER_PREFLIGHT == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -681,7 +549,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Stop after preflight (preflight_only=true)
-        if: ${{ steps.basecands.outputs.has_candidates == 'true' && env.INPUT_PREFLIGHT_ONLY == 'true' }}
+        if: ${{ steps.gate.outputs.should_run == 'true' && env.INPUT_PREFLIGHT_ONLY == 'true' }}
         run: |
           set -euo pipefail
           {
@@ -701,7 +569,7 @@ jobs:
           exit 0
 
       - name: Setup Node
-        if: ${{ steps.basecands.outputs.has_candidates == 'true' && env.INPUT_PREFLIGHT_ONLY != 'true' }}
+        if: ${{ steps.gate.outputs.should_run == 'true' && env.INPUT_PREFLIGHT_ONLY != 'true' }}
         uses: actions/setup-node@v4
         with:
           node-version-file: "projects/security-questionnaire-autopilot/.nvmrc"
@@ -711,7 +579,7 @@ jobs:
       - name: "Preflight: verify SQL bundle is internally consistent (drift guard)"
         env:
           SQL_BUNDLE: ${{ env.INPUT_SQL_BUNDLE }}
-        if: ${{ steps.basecands.outputs.has_candidates == 'true' && env.INPUT_PREFLIGHT_ONLY != 'true' }}
+        if: ${{ steps.gate.outputs.should_run == 'true' && env.INPUT_PREFLIGHT_ONLY != 'true' }}
         run: |
           set -euo pipefail
 
@@ -721,12 +589,12 @@ jobs:
           node scripts/verify-dashboard-sql-bundle.mjs --bundle "${GITHUB_WORKSPACE}/${SQL_BUNDLE}" >/dev/null
 
       - name: Install deps (hosted app)
-        if: ${{ steps.basecands.outputs.has_candidates == 'true' && env.INPUT_PREFLIGHT_ONLY != 'true' }}
+        if: ${{ steps.gate.outputs.should_run == 'true' && env.INPUT_PREFLIGHT_ONLY != 'true' }}
         working-directory: projects/security-questionnaire-autopilot
         run: npm ci
 
       - name: "Preflight: required secrets (clear error messages)"
-        if: ${{ steps.basecands.outputs.has_candidates == 'true' && env.INPUT_PREFLIGHT_ONLY != 'true' }}
+        if: ${{ steps.gate.outputs.should_run == 'true' && env.INPUT_PREFLIGHT_ONLY != 'true' }}
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -745,7 +613,7 @@ jobs:
 
       - name: Run hosted workflow + collect DB evidence (Cycle 005 wrapper)
         id: wrapper
-        if: ${{ steps.basecands.outputs.has_candidates == 'true' && env.INPUT_PREFLIGHT_ONLY != 'true' }}
+        if: ${{ steps.gate.outputs.should_run == 'true' && env.INPUT_PREFLIGHT_ONLY != 'true' }}
         env:
           BASE_URL: ${{ steps.baseurl.outputs.base_url }}
           INPUT_RUN_ID: ${{ env.INPUT_RUN_ID }}
@@ -781,7 +649,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: "Post-run smoke: runtime + db-evidence (fail-fast)"
-        if: ${{ steps.basecands.outputs.has_candidates == 'true' && env.INPUT_PREFLIGHT_ONLY != 'true' }}
+        if: ${{ steps.gate.outputs.should_run == 'true' && env.INPUT_PREFLIGHT_ONLY != 'true' }}
         env:
           BASE_URL: ${{ steps.baseurl.outputs.base_url }}
           RUN_ID: ${{ steps.wrapper.outputs.run_id }}
@@ -794,7 +662,7 @@ jobs:
           jq -e '.ok == true' preflight/postrun/smoke-summary.json >/dev/null
 
       - name: Verify evidence was appended to sales ledger
-        if: ${{ steps.basecands.outputs.has_candidates == 'true' && env.INPUT_PREFLIGHT_ONLY != 'true' }}
+        if: ${{ steps.gate.outputs.should_run == 'true' && env.INPUT_PREFLIGHT_ONLY != 'true' }}
         env:
           RUN_ID: ${{ steps.wrapper.outputs.run_id }}
           SALES_DOC: docs/sales/cycle-003-hosted-workflow-pilot-001-execution.md
@@ -832,7 +700,7 @@ jobs:
             docs/sales/cycle-003-hosted-workflow-pilot-001-execution.md
 
       - name: Create PR with appended evidence entry
-        if: ${{ steps.basecands.outputs.has_candidates == 'true' && success() && env.INPUT_PREFLIGHT_ONLY != 'true' }}
+        if: ${{ steps.gate.outputs.should_run == 'true' && success() && env.INPUT_PREFLIGHT_ONLY != 'true' }}
         uses: peter-evans/create-pull-request@v6
         with:
           title: "Cycle 005: hosted Supabase persistence evidence"

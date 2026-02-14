@@ -89,6 +89,9 @@ prompt_secret() {
   if [ -n "${!var:-}" ]; then
     return 0
   fi
+  if [ ! -r /dev/tty ]; then
+    die "no TTY available to prompt for $var. Fix: export $var (or run interactively with a TTY)."
+  fi
   read -r -s -p "$label: " "$var" </dev/tty
   echo "" >/dev/tty
   if [ -z "${!var:-}" ]; then
@@ -137,6 +140,9 @@ set_secret() {
   if [ -z "${!envvar:-}" ]; then
     if [ "$prompt" = "1" ]; then
       if [ "$envvar" = "SUPABASE_ORG_SLUG" ]; then
+        if [ ! -r /dev/tty ]; then
+          die "no TTY available to prompt for $envvar. Fix: export $envvar (or re-run with --prompt in an interactive shell)."
+        fi
         read -r -p "SUPABASE_ORG_SLUG: " "$envvar" </dev/tty
         export "$envvar"
       else

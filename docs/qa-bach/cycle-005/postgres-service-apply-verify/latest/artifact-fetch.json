@@ -1,0 +1,30 @@
+{
+  "checked_at_utc": "2026-02-14T04:26:50Z",
+  "repo": "junhengz/auto-company",
+  "run_id": 22011127973,
+  "artifact": "cycle-005-postgres-service-apply-verify",
+  "dest": "/home/zjohn/autocomp/auto-company/docs/qa-bach/cycle-005/postgres-service-apply-verify/evidence/artifacts/run-22011127973",
+  "files": [
+    "supabase-verify.json"
+  ],
+  "extracted": {
+    "supabase_verify": {
+      "src": "/home/zjohn/autocomp/auto-company/docs/qa-bach/cycle-005/postgres-service-apply-verify/evidence/artifacts/run-22011127973/supabase-verify.json",
+      "dst": "/home/zjohn/autocomp/auto-company/docs/qa-bach/cycle-005/postgres-service-apply-verify/evidence/supabase-verify-run-22011127973.json",
+      "present": true
+    },
+    "connection_hints": {
+      "src": "",
+      "dst": "/home/zjohn/autocomp/auto-company/docs/qa-bach/cycle-005/postgres-service-apply-verify/evidence/supabase-connection-nonsecret-run-22011127973.txt",
+      "present": false
+    },
+    "provision_summary": {
+      "src": "",
+      "dst": "/home/zjohn/autocomp/auto-company/docs/qa-bach/cycle-005/postgres-service-apply-verify/evidence/supabase-provision-summary-run-22011127973.json",
+      "present": false
+    }
+  },
+  "copied": [
+    "/home/zjohn/autocomp/auto-company/docs/qa-bach/cycle-005/postgres-service-apply-verify/evidence/supabase-verify-run-22011127973.json"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "checked_at_utc": "2026-02-14T04:22:11Z",
+  "repo": "junhengz/auto-company",
+  "workflow": "cycle-005-postgres-service-apply-verify.yml",
+  "ref": "",
+  "viewer_permission": "ADMIN",
+  "dispatch_started_at_utc": "2026-02-14T04:22:10Z",
+  "inputs": {
+    "supabase_project_name": "security-questionnaire-autopilot-cycle-005",
+    "reuse_existing": "true",
+    "sql_bundle": "projects/security-questionnaire-autopilot/supabase/bundles/20260213_cycle003_hosted_workflow_migration_plus_seed.sql"
+  },
+  "error": "gh workflow run failed",
+  "gh_error": "HTTP 404: Not Found (https://api.github.com/repos/junhengz/auto-company/actions/workflows/cycle-005-postgres-service-apply-verify.yml)"
+}

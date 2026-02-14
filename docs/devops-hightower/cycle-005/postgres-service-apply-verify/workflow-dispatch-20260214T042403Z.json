@@ -1,0 +1,19 @@
+{
+  "checked_at_utc": "2026-02-14T04:24:08Z",
+  "repo": "junhengz/auto-company",
+  "workflow": "cycle-005-postgres-service-apply-verify.yml",
+  "ref": "",
+  "dispatch_started_at_utc": "2026-02-14T04:24:04Z",
+  "run": {
+    "id": 22011098052,
+    "url": "https://github.com/junhengz/auto-company/actions/runs/22011098052",
+    "status": "queued",
+    "conclusion": "",
+    "created_at_utc": "2026-02-14T04:24:05Z"
+  },
+  "inputs": {
+    "supabase_project_name": "security-questionnaire-autopilot-cycle-005",
+    "reuse_existing": "true",
+    "sql_bundle": "projects/security-questionnaire-autopilot/supabase/bundles/20260213_cycle003_hosted_workflow_migration_plus_seed.sql"
+  }
+}

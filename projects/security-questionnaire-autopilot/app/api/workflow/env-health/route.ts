@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 
+// This endpoint is used for operator checks + CI preflights. It must never be
+// statically cached, otherwise env var updates (and "now") won't reflect reality.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 // Safe env diagnostics for hosted runtime. Never returns secret values.
 export async function GET() {
   // Helpful for debugging "wrong BASE_URL" and "forgot to redeploy" issues.

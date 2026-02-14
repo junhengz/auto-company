@@ -1,0 +1,11 @@
+candidate_base_url  http  ok  supabase_url  service_role  note
+https://security-questionnaire-autopilot-hosted-git-main-nicepkg.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  pdx1::2tdhs-1771033715073-22a807ac687d '
+https://security-questionnaire-autopilot-git-main-nicepkg.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  pdx1::hglxt-1771033715234-9a5245f14677 '
+https://auto-company-git-main-nicepkg.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  pdx1::rrn6v-1771033715389-aec1915d44ea '
+https://security-questionnaire-autopilot-hosted.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  cle1::crq2q-1771033715554-5cf9656964aa '
+https://security-questionnaire-autopilot.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  cle1::ggm4v-1771033715707-1bfdc7119d5d '
+https://auto-company.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  pdx1::l6x47-1771033715859-b5e7401d80ef '
+https://security-questionnaire-autopilot-hosted.pages.dev  000  -  -  -  
+https://security-questionnaire-autopilot.pages.dev  000  -  -  -  
+https://auto-company.pages.dev  200  -  -  -  content-type: text/html; charset=utf-8 body_head='<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-s'
+https://auto-company-hosted.pages.dev  000  -  -  -  

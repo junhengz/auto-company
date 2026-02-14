@@ -1,0 +1,85 @@
+BASE_URL candidates source: repo variable HOSTED_WORKFLOW_BASE_URL_CANDIDATES
+
+Copy/paste (repo variable HOSTED_WORKFLOW_BASE_URL_CANDIDATES):
+  gh variable set HOSTED_WORKFLOW_BASE_URL_CANDIDATES -R "junhengz/auto-company" --body \
+    "https://auto-company-sq-autopilot.fly.dev"
+GHA run databaseId: 22012437591
+GHA run url: https://github.com/junhengz/auto-company/actions/runs/22012437591
+Watching run...
+Refreshing run status every 3 seconds. Press Ctrl+C to quit.
+
+* main cycle-005-hosted-persistence-evidence · 22012437591
+Triggered via workflow_dispatch less than a minute ago
+
+JOBS
+* run (ID 63608666490)
+Refreshing run status every 3 seconds. Press Ctrl+C to quit.
+
+* main cycle-005-hosted-persistence-evidence · 22012437591
+Triggered via workflow_dispatch less than a minute ago
+
+JOBS
+* run (ID 63608666490)
+  ✓ Set up job
+  ✓ Checkout
+  - Guardrails (preflight-only is read-only)
+  - Persist BASE_URL candidates to repo variable (optional; workflow_dispatch only)
+  - Setup Node (local runtime)
+  - Local runtime (credential-free): start ephemeral workflow API runtime
+  ✓ Assemble + probe deployed BASE_URL candidates (always)
+  * Upload BASE_URL probe artifacts (always)
+  * Select + validate deployed BASE_URL (fail-fast)
+  * Preflight: env-health (capture)
+  * Auto-fix (Vercel): upsert Supabase env vars + redeploy (best-effort)
+  * Auto-fix (Cloudflare Pages): upsert Supabase env vars (+ optional deploy hook) (best-effort)
+  * Preflight: env-health (enforce)
+  * Preflight: supabase-health (env + schema + seed) (only when skip_sql_apply=true)
+  * Persist BASE_URL candidates from discovery (optional; workflow_dispatch only)
+  * Upload preflight artifacts (always)
+  * Enable scheduled autorun gate after green preflight (optional; workflow_dispatch only)
+  * Stop after preflight (preflight_only=true)
+  * Setup Node
+  * Preflight: verify SQL bundle is internally consistent (drift guard)
+  * Install deps (hosted app)
+  * Preflight: required secrets (clear error messages)
+  * Run hosted workflow + collect DB evidence (Cycle 005 wrapper)
+  * Post-run smoke: runtime + db-evidence (fail-fast)
+  * Verify evidence was appended to sales ledger
+  * Upload evidence artifacts
+  * Create PR with appended evidence entry
+  * Post Checkout
+X main cycle-005-hosted-persistence-evidence · 22012437591
+Triggered via workflow_dispatch less than a minute ago
+
+JOBS
+X run in 6s (ID 63608666490)
+  ✓ Set up job
+  ✓ Checkout
+  - Guardrails (preflight-only is read-only)
+  - Persist BASE_URL candidates to repo variable (optional; workflow_dispatch only)
+  - Setup Node (local runtime)
+  - Local runtime (credential-free): start ephemeral workflow API runtime
+  ✓ Assemble + probe deployed BASE_URL candidates (always)
+  ✓ Upload BASE_URL probe artifacts (always)
+  X Select + validate deployed BASE_URL (fail-fast)
+  - Preflight: env-health (capture)
+  - Auto-fix (Vercel): upsert Supabase env vars + redeploy (best-effort)
+  - Auto-fix (Cloudflare Pages): upsert Supabase env vars (+ optional deploy hook) (best-effort)
+  - Preflight: env-health (enforce)
+  - Preflight: supabase-health (env + schema + seed) (only when skip_sql_apply=true)
+  - Persist BASE_URL candidates from discovery (optional; workflow_dispatch only)
+  ✓ Upload preflight artifacts (always)
+  - Enable scheduled autorun gate after green preflight (optional; workflow_dispatch only)
+  - Stop after preflight (preflight_only=true)
+  - Setup Node
+  - Preflight: verify SQL bundle is internally consistent (drift guard)
+  - Install deps (hosted app)
+  - Preflight: required secrets (clear error messages)
+  - Run hosted workflow + collect DB evidence (Cycle 005 wrapper)
+  - Post-run smoke: runtime + db-evidence (fail-fast)
+  - Verify evidence was appended to sales ledger
+  - Upload evidence artifacts
+  - Create PR with appended evidence entry
+  ✓ Post Checkout
+  ✓ Complete job
+preflight_exit=1

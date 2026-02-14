@@ -1,0 +1,11 @@
+{
+  "checked_at_utc": "2026-02-14T03:21:36Z",
+  "missing_secrets": [
+    "SUPABASE_ACCESS_TOKEN",
+    "SUPABASE_ORG_SLUG",
+    "SUPABASE_DB_PASSWORD"
+  ],
+  "note": "This file is a safe fallback artifact written by the workflow when earlier steps fail. Successful runs should produce ok=true from the apply verification step.",
+  "ok": false,
+  "reason": "workflow_failed_before_apply"
+}

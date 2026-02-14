@@ -1,0 +1,11 @@
+candidate_base_url  http  ok  supabase_url  service_role  note
+https://security-questionnaire-autopilot-hosted-git-main-nicepkg.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::wfns7-1771033488960-d0c00b774546 '
+https://security-questionnaire-autopilot-git-main-nicepkg.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::556l4-1771033489089-ce7d5f4d818c '
+https://auto-company-git-main-nicepkg.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::hssm5-1771033489318-c607367431f0 '
+https://security-questionnaire-autopilot-hosted.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::bbsch-1771033489450-e182cd125e6a '
+https://security-questionnaire-autopilot.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::dth8j-1771033489534-e0bc219f923d '
+https://auto-company.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::z2fjv-1771033489596-0415bacc1cd5 '
+https://security-questionnaire-autopilot-hosted.pages.dev  000000  -  -  -  body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::z2fjv-1771033489596-0415bacc1cd5 '
+https://security-questionnaire-autopilot.pages.dev  000000  -  -  -  body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::z2fjv-1771033489596-0415bacc1cd5 '
+https://auto-company.pages.dev  200  -  -  -  content-type: text/html; charset=utf-8 body_head='<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-s'
+https://auto-company-hosted.pages.dev  000000  -  -  -  body_head='<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-s'

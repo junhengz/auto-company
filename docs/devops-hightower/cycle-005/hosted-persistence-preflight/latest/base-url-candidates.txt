@@ -1,0 +1,18 @@
+# Candidate origins for deployed Next.js workflow runtime.
+# These are best-effort guesses to force a CI preflight run that will upload probe artifacts.
+
+https://security-questionnaire-autopilot-hosted-git-main-junhengz.vercel.app
+https://security-questionnaire-autopilot-git-main-junhengz.vercel.app
+https://auto-company-git-main-junhengz.vercel.app
+https://security-questionnaire-autopilot-hosted-git-main-nicepkg.vercel.app
+https://security-questionnaire-autopilot-git-main-nicepkg.vercel.app
+https://auto-company-git-main-nicepkg.vercel.app
+
+https://security-questionnaire-autopilot-hosted.vercel.app
+https://security-questionnaire-autopilot.vercel.app
+https://auto-company.vercel.app
+
+https://security-questionnaire-autopilot-hosted.pages.dev
+https://security-questionnaire-autopilot.pages.dev
+https://auto-company.pages.dev
+https://auto-company-hosted.pages.dev

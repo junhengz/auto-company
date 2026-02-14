@@ -5,12 +5,13 @@ set -euo pipefail
 #
 # Priority order for candidate sources:
 # 1) positional args (if provided)
-# 2) BASE_URL_CANDIDATES (comma/space separated)
-# 3) HOSTED_WORKFLOW_BASE_URL_CANDIDATES (comma/space separated)
-# 4) CYCLE_005_BASE_URL_CANDIDATES (comma/space separated; legacy name)
-# 5) HOSTED_BASE_URL_CANDIDATES / WORKFLOW_APP_BASE_URL_CANDIDATES (legacy names)
-# 6) Hosting provider APIs (best-effort; requires optional env vars; may be empty)
-# 7) GitHub Deployments metadata (best-effort; may be empty)
+# 2) HOSTED_WORKFLOW_BASE_URL (single canonical origin)
+# 3) BASE_URL_CANDIDATES (accepted only if it normalizes to exactly one origin)
+#
+# Notes:
+# - This script no longer scans/chooses among multi-candidate variables (e.g. HOSTED_WORKFLOW_BASE_URL_CANDIDATES).
+# - If you want to probe multiple candidates, use:
+#     ./projects/security-questionnaire-autopilot/scripts/discover-hosted-base-url.sh <candidate...>
 #
 # Output: prints the selected BASE_URL (single line) to stdout.
 
@@ -18,32 +19,20 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 PROJECT="$ROOT/projects/security-questionnaire-autopilot"
 
-DISCOVER="$PROJECT/scripts/discover-hosted-base-url.sh"
-COLLECT_DEPLOYMENTS="$PROJECT/scripts/collect-base-url-candidates-from-github-deployments.sh"
-COLLECT_HOSTING="$PROJECT/scripts/collect-base-url-candidates-from-hosting.sh"
+RESOLVE_ONE="$PROJECT/scripts/resolve-hosted-workflow-base-url.sh"
 
 usage() {
   cat >&2 <<'EOF'
 Usage:
-  select-hosted-base-url.sh [candidate_base_url...]
+  select-hosted-base-url.sh [base_url]
 
 Environment inputs (optional):
+  HOSTED_WORKFLOW_BASE_URL
   BASE_URL_CANDIDATES
-  HOSTED_WORKFLOW_BASE_URL_CANDIDATES
-  CYCLE_005_BASE_URL_CANDIDATES
-  HOSTED_BASE_URL_CANDIDATES
-  WORKFLOW_APP_BASE_URL_CANDIDATES
-
-GitHub Deployments discovery (optional, best-effort):
-  GITHUB_REPOSITORY, GITHUB_TOKEN
 
 Notes:
-  - Final selection is done by probing GET <BASE_URL>/api/workflow/env-health.
-  - By default, the selected runtime must show:
-      ok=true
-      env.NEXT_PUBLIC_SUPABASE_URL=true
-      env.SUPABASE_SERVICE_ROLE_KEY=true
-    (Override via ALLOW_MISSING_SUPABASE_ENV=1 if you only want runtime identification.)
+  - This script enforces exactly one origin (no candidate scanning).
+  - The result is validated by probing GET <BASE_URL>/api/workflow/env-health.
 EOF
 }
 
@@ -52,85 +41,20 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   exit 0
 fi
 
-join_lines_to_space() {
-  # stdin: newline-separated
-  # stdout: space-separated
-  tr '\n' ' ' | tr -s ' ' | sed 's/^ *//; s/ *$//'
-}
-
-have_env() {
-  local name="$1"
-  [ -n "${!name:-}" ]
-}
-
-candidates=""
-source=""
-if [ "$#" -gt 0 ]; then
-  candidates="$*"
-  source="positional_args"
-fi
-
-if [ -z "$candidates" ] && have_env "BASE_URL_CANDIDATES"; then
-  candidates="${BASE_URL_CANDIDATES}"
-  source="env:BASE_URL_CANDIDATES"
-fi
-if [ -z "$candidates" ] && have_env "HOSTED_WORKFLOW_BASE_URL_CANDIDATES"; then
-  candidates="${HOSTED_WORKFLOW_BASE_URL_CANDIDATES}"
-  source="env:HOSTED_WORKFLOW_BASE_URL_CANDIDATES"
-fi
-if [ -z "$candidates" ] && have_env "CYCLE_005_BASE_URL_CANDIDATES"; then
-  candidates="${CYCLE_005_BASE_URL_CANDIDATES}"
-  source="env:CYCLE_005_BASE_URL_CANDIDATES"
-fi
-if [ -z "$candidates" ] && have_env "HOSTED_BASE_URL_CANDIDATES"; then
-  candidates="${HOSTED_BASE_URL_CANDIDATES}"
-  source="env:HOSTED_BASE_URL_CANDIDATES"
-fi
-if [ -z "$candidates" ] && have_env "WORKFLOW_APP_BASE_URL_CANDIDATES"; then
-  candidates="${WORKFLOW_APP_BASE_URL_CANDIDATES}"
-  source="env:WORKFLOW_APP_BASE_URL_CANDIDATES"
-fi
-
-if [ -z "$candidates" ]; then
-  # Hosting API discovery is optional; only attempts if the relevant env vars exist.
-  # Vercel:
-  # - VERCEL_TOKEN + (VERCEL_PROJECT_ID or VERCEL_PROJECT)
-  # Cloudflare Pages:
-  # - CLOUDFLARE_API_TOKEN + CF_PAGES_PROJECT
-  #   (CLOUDFLARE_ACCOUNT_ID is optional; the collector can resolve it if the token sees 1 account,
-  #    or if CLOUDFLARE_ACCOUNT_NAME is set)
-  if (have_env "VERCEL_TOKEN" && (have_env "VERCEL_PROJECT_ID" || have_env "VERCEL_PROJECT" || have_env "VERCEL_PROJECT_NAME")) || \
-     (have_env "CLOUDFLARE_API_TOKEN" && have_env "CF_PAGES_PROJECT"); then
-    echo "No explicit BASE_URL candidates provided; attempting hosting API discovery..." >&2
-    discovered="$("$COLLECT_HOSTING" | join_lines_to_space || true)"
-    candidates="${discovered:-}"
-    if [ -n "$candidates" ]; then
-      source="hosting_apis"
-    fi
-  fi
-fi
-
-if [ -z "$candidates" ] && have_env "GITHUB_REPOSITORY" && have_env "GITHUB_TOKEN"; then
-  echo "No explicit BASE_URL candidates provided; attempting GitHub Deployments discovery..." >&2
-  discovered="$("$COLLECT_DEPLOYMENTS" | join_lines_to_space || true)"
-  candidates="${discovered:-}"
-  if [ -n "$candidates" ]; then
-    source="github_deployments"
-  fi
-fi
-
-if [ -z "$candidates" ]; then
-  echo "Error: no BASE_URL candidates available." >&2
-  echo "" >&2
-  echo "Provide one of:" >&2
-  echo "  - positional args: select-hosted-base-url.sh https://candidate1 https://candidate2" >&2
-  echo "  - env var: BASE_URL_CANDIDATES='https://candidate1 https://candidate2'" >&2
-  echo "  - repo variable (recommended for GHA): HOSTED_WORKFLOW_BASE_URL_CANDIDATES" >&2
-  echo "" >&2
-  echo "See: docs/devops/base-url-discovery.md" >&2
+# This wrapper intentionally enforces a single origin.
+if [ "$#" -gt 1 ]; then
+  echo "Error: expected 0 or 1 argument (single origin); got $#." >&2
+  echo "If you need to probe multiple candidates, run:" >&2
+  echo "  ./projects/security-questionnaire-autopilot/scripts/discover-hosted-base-url.sh <candidate...>" >&2
   exit 2
 fi
 
-echo "Using BASE_URL candidates source: ${source:-unknown}" >&2
-export BASE_URL_CANDIDATES="$candidates"
-exec "$DISCOVER"
+# Legacy vars are ignored (intentionally) to prevent CI poisoning via candidate lists.
+if [ -n "${HOSTED_WORKFLOW_BASE_URL_CANDIDATES:-}" ] || \
+   [ -n "${CYCLE_005_BASE_URL_CANDIDATES:-}" ] || \
+   [ -n "${HOSTED_BASE_URL_CANDIDATES:-}" ] || \
+   [ -n "${WORKFLOW_APP_BASE_URL_CANDIDATES:-}" ]; then
+  echo "Warning: legacy multi-candidate BASE_URL vars are ignored (set HOSTED_WORKFLOW_BASE_URL instead)." >&2
+fi
+
+exec "$RESOLVE_ONE" "${1:-}"

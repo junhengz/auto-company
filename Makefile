@@ -1,4 +1,4 @@
-.PHONY: start start-awake awake stop status last cycles monitor pause resume install uninstall team cycle-005-evidence cycle-005-preflight cycle-005-preflight-enable-autorun cycle-005-env-sync cycle-005-fallback cycle-005-postgres-service-evidence help
+.PHONY: start start-awake awake stop status last cycles monitor pause resume install uninstall team sq-autopilot-fly-deploy sq-autopilot-fly-deploy-and-preflight cycle-005-evidence cycle-005-preflight cycle-005-preflight-enable-autorun cycle-005-env-sync cycle-005-fallback cycle-005-postgres-service-evidence help
 
 # === Quick Start ===
 
@@ -66,6 +66,12 @@ team: ## Start interactive Codex session
 	cd "$(CURDIR)" && codex
 
 # === Evidence Runs ===
+
+sq-autopilot-fly-deploy: ## Deploy hosted workflow runtime to Fly (no Cycle 005 dispatch)
+	./scripts/devops/deploy-sq-autopilot-fly-and-preflight.sh --repo junhengz/auto-company --install-flyctl --skip-preflight
+
+sq-autopilot-fly-deploy-and-preflight: ## Deploy to Fly, persist HOSTED_WORKFLOW_BASE_URL, and dispatch Cycle 005 preflight (strict supabase-health)
+	./scripts/devops/deploy-sq-autopilot-fly-and-preflight.sh --repo junhengz/auto-company --install-flyctl --preflight-require-supabase-health true
 
 cycle-005-evidence: ## Trigger Cycle 005 hosted persistence evidence workflow (requires gh auth + repo vars/secrets)
 	./scripts/devops/run-cycle-005-hosted-persistence-evidence.sh

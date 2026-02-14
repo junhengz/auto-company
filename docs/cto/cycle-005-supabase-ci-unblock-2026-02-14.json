@@ -1,0 +1,27 @@
+{
+  "checked_at_utc": "2026-02-14T03:37:19Z",
+  "repo": "junhengz/auto-company",
+  "objective": "Cycle 005 Supabase provision/apply/verify produces supabase-verify.json with ok=true",
+  "required_github_secrets": [
+    "SUPABASE_ACCESS_TOKEN",
+    "SUPABASE_ORG_SLUG",
+    "SUPABASE_DB_PASSWORD"
+  ],
+  "current_blockers": [
+    {
+      "type": "missing_github_secrets",
+      "missing": [
+        "SUPABASE_ACCESS_TOKEN",
+        "SUPABASE_ORG_SLUG",
+        "SUPABASE_DB_PASSWORD"
+      ],
+      "evidence": "docs/devops/evidence/actions-secrets-check-junhengz_auto-company-20260214T033157Z-402190-21478.json"
+    }
+  ],
+  "notes": [
+    "Without these secrets, the workflow uploads only a fallback supabase-verify.json with ok=false.",
+    "After secrets are set, a successful run should upload projects/security-questionnaire-autopilot/runs/supabase-verify.json with ok=true."
+  ],
+  "example_failed_run_evidence": "docs/devops/evidence/supabase-verify-run-22010216881.json",
+  "next_action": "Set the 3 required GitHub Actions repo secrets in junhengz/auto-company, then run scripts/devops/run-cycle-018-supabase-ci-cto.sh --repo junhengz/auto-company --set-missing --non-interactive and verify jq -e .ok==true on the downloaded supabase-verify.json"
+}

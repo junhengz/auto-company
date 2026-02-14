@@ -1,0 +1,37 @@
+{
+  "checked_at_utc": "2026-02-14T04:36:53Z",
+  "repo": "junhengz/auto-company",
+  "run_id": 22011263303,
+  "artifact": "cycle-005-postgres-service-apply-verify",
+  "dest": "docs/devops-hightower/cycle-005/postgres-service-apply-verify/evidence/artifacts/run-22011263303",
+  "files": [
+    "supabase-verify.json",
+    "cycle-005-apply-path.txt"
+  ],
+  "extracted": {
+    "supabase_verify": {
+      "src": "docs/devops-hightower/cycle-005/postgres-service-apply-verify/evidence/artifacts/run-22011263303/supabase-verify.json",
+      "dst": "docs/devops-hightower/cycle-005/postgres-service-apply-verify/evidence/supabase-verify-run-22011263303.json",
+      "present": true
+    },
+    "connection_hints": {
+      "src": "",
+      "dst": "docs/devops-hightower/cycle-005/postgres-service-apply-verify/evidence/supabase-connection-nonsecret-run-22011263303.txt",
+      "present": false
+    },
+    "provision_summary": {
+      "src": "",
+      "dst": "docs/devops-hightower/cycle-005/postgres-service-apply-verify/evidence/supabase-provision-summary-run-22011263303.json",
+      "present": false
+    },
+    "apply_path": {
+      "src": "docs/devops-hightower/cycle-005/postgres-service-apply-verify/evidence/artifacts/run-22011263303/cycle-005-apply-path.txt",
+      "dst": "docs/devops-hightower/cycle-005/postgres-service-apply-verify/evidence/cycle-005-apply-path-run-22011263303.txt",
+      "present": true
+    }
+  },
+  "copied": [
+    "docs/devops-hightower/cycle-005/postgres-service-apply-verify/evidence/supabase-verify-run-22011263303.json",
+    "docs/devops-hightower/cycle-005/postgres-service-apply-verify/evidence/cycle-005-apply-path-run-22011263303.txt"
+  ]
+}

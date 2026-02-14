@@ -1,0 +1,14 @@
+candidate_base_url  http  ok  supabase_url  service_role  note
+https://security-questionnaire-autopilot-hosted-git-main-junhengz.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::z6pk5-1771044266339-5493dd14db3f '
+https://security-questionnaire-autopilot-git-main-junhengz.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::t8v95-1771044266463-1f4d3b44e9c0 '
+https://auto-company-git-main-junhengz.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::lx8pz-1771044266560-dc6012dfecbf '
+https://security-questionnaire-autopilot-hosted-git-main-nicepkg.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::7lxnn-1771044266702-98e56832e3f5 '
+https://security-questionnaire-autopilot-git-main-nicepkg.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::74szh-1771044266837-d6e279b05ba3 '
+https://auto-company-git-main-nicepkg.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::5ksf2-1771044267012-94ae77107950 '
+https://security-questionnaire-autopilot-hosted.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::9c2cd-1771044267107-80c254f585b3 '
+https://security-questionnaire-autopilot.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::r8mqp-1771044267214-c3bd36c557aa '
+https://auto-company.vercel.app  404  -  -  -  content-type: text/plain; charset=utf-8 body_head='The deployment could not be found on Vercel.  DEPLOYMENT_NOT_FOUND  iad1::f75vc-1771044267343-8512cbbb136f '
+https://security-questionnaire-autopilot-hosted.pages.dev  000  -  -  -  
+https://security-questionnaire-autopilot.pages.dev  000  -  -  -  
+https://auto-company.pages.dev  200  -  -  -  content-type: text/html; charset=utf-8 body_head='<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-s'
+https://auto-company-hosted.pages.dev  000  -  -  -  

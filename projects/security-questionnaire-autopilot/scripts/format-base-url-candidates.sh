@@ -3,8 +3,9 @@ set -euo pipefail
 
 # Format a simple "one URL per line" candidate list file into a single space-separated
 # string suitable for:
-# - GitHub Actions workflow_dispatch input: base_url
-# - GitHub Actions repo variable: HOSTED_WORKFLOW_BASE_URL_CANDIDATES (recommended)
+# - GitHub Actions workflow_dispatch input: base_url (may be a single origin or a short list)
+# - GitHub Actions repo variable: HOSTED_WORKFLOW_BASE_URL (preferred; single canonical origin)
+# - GitHub Actions repo variable: HOSTED_WORKFLOW_BASE_URL_CANDIDATES (legacy)
 # - GitHub Actions repo variable: CYCLE_005_BASE_URL_CANDIDATES (legacy)
 #
 # Notes:

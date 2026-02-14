@@ -1,0 +1,2 @@
+apply_path=postgres_service
+note=Applied bundle to vanilla Postgres service container (no Supabase provisioning secrets).

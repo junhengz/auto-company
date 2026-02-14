@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "runtime": {
+    "node": "v18.19.1",
+    "now": "2026-02-14T06:06:12.077Z"
+  },
+  "deploy": {
+    "provider": "unknown",
+    "vercel": {
+      "env": null,
+      "url": null,
+      "region": null,
+      "git_commit_sha": null,
+      "git_commit_ref": null
+    },
+    "cloudflare_pages": {
+      "branch": null,
+      "commit_sha": null,
+      "url": null,
+      "deployment_id": null
+    }
+  },
+  "env": {
+    "NEXT_PUBLIC_SUPABASE_URL": true,
+    "SUPABASE_SERVICE_ROLE_KEY": true
+  }
+}

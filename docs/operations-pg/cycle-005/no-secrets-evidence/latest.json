@@ -1,0 +1,23 @@
+{
+  "checked_at_utc": "2026-02-14T04:24:21.414Z",
+  "repo_git_sha": "50c9c3ec82607d2823ef00112e159eab33d87491",
+  "inputs": {
+    "sql_bundle": "projects/security-questionnaire-autopilot/supabase/bundles/20260213_cycle003_hosted_workflow_migration_plus_seed.sql",
+    "out_dir": "docs/operations-pg/cycle-005/no-secrets-evidence"
+  },
+  "steps": {
+    "static_bundle_verify": {
+      "attempted": true,
+      "ok": true,
+      "exit_code": 0,
+      "latest_evidence": "docs/operations-pg/cycle-005/no-secrets-evidence/static/latest.json"
+    },
+    "gha_postgres_service_apply_verify": {
+      "attempted": true,
+      "ok": false,
+      "run_id": null,
+      "latest_evidence": null,
+      "reason": "gha_failed_or_artifact_missing"
+    }
+  }
+}

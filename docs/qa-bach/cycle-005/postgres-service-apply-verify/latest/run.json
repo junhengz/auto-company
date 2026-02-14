@@ -1,0 +1,13 @@
+{
+  "checked_at_utc": "2026-02-14T04:26:50Z",
+  "repo": "junhengz/auto-company",
+  "workflow": "cycle-005-postgres-service-apply-verify.yml",
+  "run_id": 22011127973,
+  "inputs": {
+    "sql_bundle": "projects/security-questionnaire-autopilot/supabase/bundles/20260213_cycle003_hosted_workflow_migration_plus_seed.sql"
+  },
+  "paths": {
+    "evidence_dir": "/home/zjohn/autocomp/auto-company/docs/qa-bach/cycle-005/postgres-service-apply-verify/evidence",
+    "latest_dir": "/home/zjohn/autocomp/auto-company/docs/qa-bach/cycle-005/postgres-service-apply-verify/latest"
+  }
+}

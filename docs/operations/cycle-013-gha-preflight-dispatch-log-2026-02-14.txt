@@ -1,0 +1,12 @@
+Warning: insufficient permissions to list repo secrets via gh; skipping local secret presence checks (CI will enforce).
+Warning: insufficient permissions to read repo variables via gh; skipping local variable reads (pass --base-url/--candidates or CI vars must be set).
+BASE_URL candidates source: --base-url
+
+Copy/paste (repo variable HOSTED_WORKFLOW_BASE_URL_CANDIDATES):
+  gh variable set HOSTED_WORKFLOW_BASE_URL_CANDIDATES -R "nicepkg/auto-company" --body \
+    "\1"
+HTTP 404: Not Found (https://api.github.com/repos/nicepkg/auto-company/actions/workflows/cycle-005-hosted-persistence-evidence.yml)
+
+Likely cause: workflow 'cycle-005-hosted-persistence-evidence.yml' does not exist on repo=nicepkg/auto-company default branch/ref.
+Check: gh workflow list -R "nicepkg/auto-company"
+Fix: run against the repo/ref that actually contains the workflow (or merge/push the workflow to the target repo).

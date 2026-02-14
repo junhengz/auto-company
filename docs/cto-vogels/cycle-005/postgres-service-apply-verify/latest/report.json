@@ -1,0 +1,26 @@
+{
+  "checked_at_utc": "2026-02-14T04:26:06Z",
+  "mode": "fallback_postgres_service_apply_verify",
+  "github": {
+    "repo": "junhengz/auto-company",
+    "run_id": 22011105800,
+    "workflow": "cycle-005-postgres-service-apply-verify.yml"
+  },
+  "paths": {
+    "out_dir": "/home/zjohn/autocomp/auto-company/docs/cto-vogels/cycle-005/postgres-service-apply-verify",
+    "latest_dir": "/home/zjohn/autocomp/auto-company/docs/cto-vogels/cycle-005/postgres-service-apply-verify/latest",
+    "run": "/home/zjohn/autocomp/auto-company/docs/cto-vogels/cycle-005/postgres-service-apply-verify/latest/run.json",
+    "supabase_verify": "/home/zjohn/autocomp/auto-company/docs/cto-vogels/cycle-005/postgres-service-apply-verify/latest/supabase-verify.json"
+  },
+  "inputs": {
+    "sql_bundle": "projects/security-questionnaire-autopilot/supabase/bundles/20260213_cycle003_hosted_workflow_migration_plus_seed.sql"
+  },
+  "sql_bundle": {
+    "sha256": "5371a02404dfe3a23be3a243f33e8a8a58b91845ef131574195545e11466f8ae",
+    "bytes": 4464
+  },
+  "result": {
+    "ok": true,
+    "reason": null
+  }
+}

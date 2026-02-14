@@ -89,9 +89,10 @@ infer_repo() {
 ensure_workflow_exists_on_remote() {
   # GitHub only exposes workflow_dispatch targets that exist on the repo's default branch.
   # If this workflow file isn't merged, dispatch will 404.
+  local wf="cycle-005-postgres-service-apply-verify.yml"
   local tmp
   tmp="$(mktemp)"
-  if gh api "repos/${REPO}/actions/workflows/cycle-005-postgres-service-apply-verify.yml" >/dev/null 2>"$tmp"; then
+  if gh api "repos/${REPO}/actions/workflows/${wf}" >/dev/null 2>"$tmp"; then
     rm -f "$tmp" >/dev/null 2>&1 || true
     return 0
   fi
@@ -106,14 +107,14 @@ ensure_workflow_exists_on_remote() {
   jq -n \
     --arg checked_at_utc "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
     --arg repo "$REPO" \
-    --arg workflow "cycle-005-postgres-service-apply-verify.yml" \
+    --arg workflow "$wf" \
     --arg gh_error "$err" \
     '{checked_at_utc:$checked_at_utc, repo:$repo, workflow:$workflow, error:"Workflow not found on remote default branch; cannot dispatch.", gh_error:$gh_error, note:"Merge .github/workflows/cycle-005-postgres-service-apply-verify.yml to the default branch, then re-run this script."}' \
     >"$out"
 
   echo "ERROR: remote workflow missing; cannot dispatch workflow_dispatch." >&2
   echo "Evidence: $out" >&2
-  echo "Fix: merge .github/workflows/cycle-005-postgres-service-apply-verify.yml to ${REPO}'s default branch." >&2
+  echo "Fix: merge .github/workflows/${wf} to ${REPO}'s default branch." >&2
   exit 2
 }
 

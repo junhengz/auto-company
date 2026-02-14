@@ -18,6 +18,9 @@ name: cycle-005-supabase-provision-apply-verify-dispatch
 
 jobs:
   provision_apply_verify:
+    # Fallback path is handled by a separate job when secrets are missing.
+    # This job should only run when all required provisioning secrets exist.
+    if: ${{ secrets.SUPABASE_ACCESS_TOKEN != '' && secrets.SUPABASE_ORG_SLUG != '' && secrets.SUPABASE_DB_PASSWORD != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -117,6 +120,16 @@ jobs:
           test -f "${{ github.workspace }}/${{ inputs.sql_bundle }}" || (echo "Bundle not found: ${{ inputs.sql_bundle }}" >&2; exit 2)
           ./scripts/apply-supabase-bundle.sh "${{ github.workspace }}/${{ inputs.sql_bundle }}"
 
+      - name: Record apply path marker (non-secret)
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p projects/security-questionnaire-autopilot/runs
+          {
+            echo "apply_path=supabase_provision"
+            echo "note=Used Supabase Management API provisioning + applied bundle to Supabase Postgres."
+          } > projects/security-questionnaire-autopilot/runs/cycle-005-apply-path.txt
+
       - name: Assert verification JSON is ok (non-secret)
         working-directory: projects/security-questionnaire-autopilot
         run: |
@@ -130,6 +143,10 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_ORG_SLUG: ${{ secrets.SUPABASE_ORG_SLUG }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REF: ${{ steps.provision.outputs.supabase_project_ref }}
+          INPUT_SUPABASE_PROJECT_NAME: ${{ inputs.supabase_project_name }}
+          INPUT_REUSE_EXISTING: ${{ inputs.reuse_existing }}
+          INPUT_SQL_BUNDLE: ${{ inputs.sql_bundle }}
         run: |
           set -euo pipefail
           mkdir -p projects/security-questionnaire-autopilot/runs
@@ -143,11 +160,34 @@ jobs:
           required = ["SUPABASE_ACCESS_TOKEN", "SUPABASE_ORG_SLUG", "SUPABASE_DB_PASSWORD"]
           missing = [k for k in required if not os.environ.get(k)]
 
+          project_ref = os.environ.get("SUPABASE_PROJECT_REF") or None
+          inputs = {
+              "supabase_project_name": os.environ.get("INPUT_SUPABASE_PROJECT_NAME") or None,
+              "reuse_existing": os.environ.get("INPUT_REUSE_EXISTING") or None,
+              "sql_bundle": os.environ.get("INPUT_SQL_BUNDLE") or None,
+          }
+
+          reason = "workflow_failed_before_apply"
+          if missing:
+              reason = "missing_required_secrets"
+
           data = {
               "checked_at_utc": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
               "ok": False,
-              "reason": "workflow_failed_before_apply",
+              "reason": reason,
               "missing_secrets": missing,
+              "project_ref": project_ref,
+              "inputs": inputs,
+              "github": {
+                  "repository": os.environ.get("GITHUB_REPOSITORY"),
+                  "run_id": os.environ.get("GITHUB_RUN_ID"),
+                  "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+                  "workflow": os.environ.get("GITHUB_WORKFLOW"),
+                  "job": os.environ.get("GITHUB_JOB"),
+                  "ref": os.environ.get("GITHUB_REF"),
+                  "sha": os.environ.get("GITHUB_SHA"),
+                  "actor": os.environ.get("GITHUB_ACTOR"),
+              },
               "note": "This file is a safe fallback artifact written by the workflow when earlier steps fail. Successful runs should produce ok=true from the apply verification step.",
           }
 
@@ -181,4 +221,124 @@ jobs:
             projects/security-questionnaire-autopilot/runs/supabase-provision-summary.json
             projects/security-questionnaire-autopilot/runs/supabase-provision.kv
             projects/security-questionnaire-autopilot/runs/supabase-connection-nonsecret.txt
+            projects/security-questionnaire-autopilot/runs/cycle-005-apply-path.txt
+            projects/security-questionnaire-autopilot/runs/supabase-verify.json
+
+  postgres_service_apply_verify:
+    # Deterministic secrets-free fallback: apply + verify the SQL bundle against
+    # a vanilla Postgres service container. This keeps artifact production alive
+    # even when provisioning secrets are unavailable.
+    if: ${{ secrets.SUPABASE_ACCESS_TOKEN == '' || secrets.SUPABASE_ORG_SLUG == '' || secrets.SUPABASE_DB_PASSWORD == '' }}
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: "projects/security-questionnaire-autopilot/package-lock.json"
+
+      - name: Install deps (hosted app)
+        working-directory: projects/security-questionnaire-autopilot
+        run: npm ci
+
+      - name: Apply SQL bundle to Postgres service (fallback; no Supabase secrets required)
+        working-directory: projects/security-questionnaire-autopilot
+        env:
+          SUPABASE_DB_URL: "postgresql://postgres:postgres@localhost:5432/postgres"
+          SUPABASE_DB_SSL: "false"
+          SUPABASE_DB_SSL_REJECT_UNAUTHORIZED: "false"
+        run: |
+          set -euo pipefail
+          test -f "${{ github.workspace }}/${{ inputs.sql_bundle }}" || (echo "Bundle not found: ${{ inputs.sql_bundle }}" >&2; exit 2)
+          ./scripts/apply-supabase-bundle.sh "${{ github.workspace }}/${{ inputs.sql_bundle }}"
+
+      - name: Record apply path marker (non-secret)
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p projects/security-questionnaire-autopilot/runs
+          {
+            echo "apply_path=postgres_service_fallback"
+            echo "note=Supabase provisioning secrets missing; applied bundle to vanilla Postgres service container."
+          } > projects/security-questionnaire-autopilot/runs/cycle-005-apply-path.txt
+
+      - name: Write safe supabase-verify.json if missing (always)
+        if: always()
+        env:
+          INPUT_SQL_BUNDLE: ${{ inputs.sql_bundle }}
+        run: |
+          set -euo pipefail
+          mkdir -p projects/security-questionnaire-autopilot/runs
+          if [ -f projects/security-questionnaire-autopilot/runs/supabase-verify.json ]; then
+            exit 0
+          fi
+
+          python - <<'PY'
+          import datetime, json, os
+
+          data = {
+              "checked_at_utc": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+              "ok": False,
+              "reason": "postgres_service_apply_failed_before_verify",
+              "missing_secrets": ["SUPABASE_ACCESS_TOKEN", "SUPABASE_ORG_SLUG", "SUPABASE_DB_PASSWORD"],
+              "inputs": {"sql_bundle": os.environ.get("INPUT_SQL_BUNDLE") or None},
+              "github": {
+                  "repository": os.environ.get("GITHUB_REPOSITORY"),
+                  "run_id": os.environ.get("GITHUB_RUN_ID"),
+                  "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+                  "workflow": os.environ.get("GITHUB_WORKFLOW"),
+                  "job": os.environ.get("GITHUB_JOB"),
+                  "ref": os.environ.get("GITHUB_REF"),
+                  "sha": os.environ.get("GITHUB_SHA"),
+                  "actor": os.environ.get("GITHUB_ACTOR"),
+              },
+              "note": "Safe fallback artifact written when the secrets-free Postgres service apply step failed before verification JSON could be produced.",
+          }
+
+          out = "projects/security-questionnaire-autopilot/runs/supabase-verify.json"
+          with open(out, "w", encoding="utf-8") as f:
+              json.dump(data, f, indent=2, sort_keys=True)
+              f.write("\\n")
+          PY
+
+      - name: Job summary (safe)
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "## Secrets-Free Fallback: Postgres Service Apply + Verify"
+            echo ""
+            echo "- Reason: missing Supabase provisioning secrets on this repository"
+            echo "- SQL bundle: `${{ inputs.sql_bundle }}`"
+            echo "- Artifact: `cycle-005-supabase-provision-apply-verify` (fallback job)"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artifacts (non-secret)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cycle-005-supabase-provision-apply-verify
+          if-no-files-found: warn
+          path: |
+            projects/security-questionnaire-autopilot/runs/cycle-005-apply-path.txt
             projects/security-questionnaire-autopilot/runs/supabase-verify.json

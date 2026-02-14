@@ -1,0 +1,30 @@
+{
+  "checked_at_utc": "2026-02-14T03:34:26Z",
+  "repo": "junhengz/auto-company",
+  "run_id": 22010383272,
+  "artifact": "cycle-005-supabase-provision-apply-verify",
+  "dest": "/home/zjohn/autocomp/auto-company/docs/devops/evidence/artifacts/run-22010383272",
+  "files": [
+    "supabase-verify.json"
+  ],
+  "extracted": {
+    "supabase_verify": {
+      "src": "/home/zjohn/autocomp/auto-company/docs/devops/evidence/artifacts/run-22010383272/supabase-verify.json",
+      "dst": "/home/zjohn/autocomp/auto-company/docs/devops/evidence/supabase-verify-run-22010383272.json",
+      "present": true
+    },
+    "connection_hints": {
+      "src": "",
+      "dst": "/home/zjohn/autocomp/auto-company/docs/devops/evidence/supabase-connection-nonsecret-run-22010383272.txt",
+      "present": false
+    },
+    "provision_summary": {
+      "src": "",
+      "dst": "/home/zjohn/autocomp/auto-company/docs/devops/evidence/supabase-provision-summary-run-22010383272.json",
+      "present": false
+    }
+  },
+  "copied": [
+    "/home/zjohn/autocomp/auto-company/docs/devops/evidence/supabase-verify-run-22010383272.json"
+  ]
+}

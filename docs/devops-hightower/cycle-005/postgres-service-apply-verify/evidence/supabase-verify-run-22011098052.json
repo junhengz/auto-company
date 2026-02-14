@@ -1,0 +1,21 @@
+{
+  "ok": true,
+  "checked_at_utc": "2026-02-14T04:24:41.155Z",
+  "expected": {
+    "schema_bundle_id": "20260213_cycle003_hosted_workflow",
+    "seed_run_id": "pilot-001-live-2026-02-13",
+    "require_schema": true,
+    "require_seed": true
+  },
+  "actual": {
+    "schema_bundle_id": "20260213_cycle003_hosted_workflow",
+    "seed_present": true,
+    "tables": {
+      "workflow_app_meta": true,
+      "workflow_runs": true,
+      "workflow_events": true,
+      "pilot_deals": true
+    }
+  },
+  "error": null
+}

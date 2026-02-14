@@ -22,7 +22,7 @@ Flags:
   --set-missing-secrets         if required secrets are missing, prompt and set them via gh
   --non-interactive             used with --set-missing-secrets; requires env vars to be set (no prompting)
   --skip-secrets-check          dispatch even if secrets are missing (workflow should still upload safe evidence)
-  --no-watch                    dispatch only; skip waiting for completion (still resolves run id)
+  --no-watch                    dispatch only; do not wait and do not download artifacts (prints run id)
   --run-id ID                   skip dispatch; only download artifacts for an existing run
 
 Compat flags (aliases):
@@ -87,27 +87,42 @@ if [ -n "${RUN_ID:-}" ]; then
   exit 0
 fi
 
+# Make the target repo explicit early. This avoids accidentally operating on the
+# read-only fork (common in this workspace) and makes logs/artifacts consistent.
+if [ -z "${REPO:-}" ]; then
+  REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)"
+fi
+if [ -z "${REPO:-}" ]; then
+  REPO="$(git remote get-url origin 2>/dev/null | sed -E 's#\\.git$##' | sed -E 's#.*github\\.com[:/]+([^/]+/[^/]+)$#\\1#' || true)"
+fi
+if [ -z "${REPO:-}" ]; then
+  echo "Could not infer --repo. Re-run with: --repo OWNER/REPO" >&2
+  exit 2
+fi
+
 required="SUPABASE_ACCESS_TOKEN SUPABASE_ORG_SLUG SUPABASE_DB_PASSWORD"
 
-if [ "$SKIP_SECRETS_CHECK" != "1" ] && ! "$ROOT/scripts/devops/gha-secrets-verify.sh" ${REPO:+--repo "$REPO"} --required "$required" >/dev/null 2>&1; then
+if [ "$SKIP_SECRETS_CHECK" != "1" ] && ! "$ROOT/scripts/devops/gha-secrets-verify.sh" --repo "$REPO" --required "$required" >/dev/null 2>&1; then
   if [ "$SET_MISSING" != "1" ]; then
     echo "Required secrets missing. Run with --set-missing-secrets to set them, or set them in GitHub UI." >&2
-    "$ROOT/scripts/devops/gha-secrets-verify.sh" ${REPO:+--repo "$REPO"} --required "$required"
+    echo "Tip: for Supabase-specific checking/setting + evidence, use: scripts/devops/gh-ensure-supabase-provision-secrets.sh --repo \"$REPO\" --set-missing" >&2
+    "$ROOT/scripts/devops/gha-secrets-verify.sh" --repo "$REPO" --required "$required"
     exit 2
   fi
-  args=("$ROOT/scripts/devops/gha-secrets-set.sh" ${REPO:+--repo "$REPO"} --required "$required")
+  args=("$ROOT/scripts/devops/gha-secrets-set.sh" --repo "$REPO" --required "$required")
   if [ "$NON_INTERACTIVE" = "1" ]; then
     args+=("--non-interactive")
   fi
   "${args[@]}"
 fi
 
-REPO_ARG=()
-if [ -n "${REPO:-}" ]; then REPO_ARG=(--repo "$REPO"); fi
+if [ "$SKIP_SECRETS_CHECK" = "1" ]; then
+  echo "NOTE: --skip-secrets-check enabled. If required secrets are missing, the workflow will fail early and upload a fallback supabase-verify.json with ok=false." >&2
+fi
 
   dispatch_args=(
     "$ROOT/scripts/devops/gha-workflow-dispatch.sh"
-    "${REPO_ARG[@]}"
+    --repo "$REPO"
     --workflow "cycle-005-supabase-provision-apply-verify-dispatch.yml"
     --supabase-project-name "$SUPABASE_PROJECT_NAME"
     --reuse-existing "$REUSE_EXISTING"
@@ -119,6 +134,15 @@ fi
 
 RUN_ID="$("${dispatch_args[@]}")"
 echo "Run id: $RUN_ID" >&2
+
+if [ "$NO_WATCH" = "1" ]; then
+  cat >&2 <<EOF
+Not watching or downloading artifacts (--no-watch).
+To fetch artifacts later:
+  scripts/devops/run-cycle-005-supabase-provision-apply-verify.sh --repo "$REPO" --run-id "$RUN_ID"
+EOF
+  exit 0
+fi
 
 if [ "$NO_WATCH" != "1" ]; then
   echo "Watching run (exit status reflects conclusion): gh run watch \"$RUN_ID\" -R \"${REPO:-<inferred>}\" --exit-status" >&2

@@ -108,8 +108,13 @@ for name in "${target_names[@]:-}"; do
       echo "Missing env var for secret $name (non-interactive mode)." >&2
       exit 2
     fi
-    read -rs -p "$name: " val
-    echo >&2
+    # Prevent hanging reads when stdin is not a TTY (common in automation).
+    if [ ! -r /dev/tty ]; then
+      echo "No TTY available to prompt for $name. Re-run with --non-interactive and export $name." >&2
+      exit 2
+    fi
+    read -rs -p "$name: " val </dev/tty
+    echo "" >/dev/tty
     src="prompt"
   fi
 

@@ -1,0 +1,2 @@
+candidate_base_url  http  ok  supabase_url  service_role  note
+https://example.com  404  -  -  -  content-type: text/html body_head='<!doctype html><html lang="en"><head><title>Example Domain</title><meta name="viewport" content="width=device-width, ini'

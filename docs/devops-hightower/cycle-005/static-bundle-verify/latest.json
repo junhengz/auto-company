@@ -1,0 +1,23 @@
+{
+  "checked_at_utc": "2026-02-14T04:22:15.742Z",
+  "ok": true,
+  "exit_code": 0,
+  "repo_git_sha": "e89b6aba1962142be55797a95510c32094fd2210",
+  "inputs": {
+    "bundle": "projects/security-questionnaire-autopilot/supabase/bundles/20260213_cycle003_hosted_workflow_migration_plus_seed.sql",
+    "bundle_abs": "/home/zjohn/autocomp/auto-company/projects/security-questionnaire-autopilot/supabase/bundles/20260213_cycle003_hosted_workflow_migration_plus_seed.sql"
+  },
+  "derived": {
+    "bundle_sha256": "5371a02404dfe3a23be3a243f33e8a8a58b91845ef131574195545e11466f8ae",
+    "workflow_schema_version": {
+      "bundleId": "20260213_cycle003_hosted_workflow",
+      "bundleSha256": "5371a02404dfe3a23be3a243f33e8a8a58b91845ef131574195545e11466f8ae",
+      "migrationSha256": "6acacbf2785cd4bfccb80a2e42493ada472e1e52fcf0b9a81341c89efd5c9bb2",
+      "seedSha256": "76305165e91a48f807b6916effb4b686f1b4a77ada17e16901ae8383918bbfdf"
+    }
+  },
+  "verifier": {
+    "cmd": "node projects/security-questionnaire-autopilot/scripts/verify-dashboard-sql-bundle.mjs --bundle <abs>",
+    "stdout_path": "docs/devops-hightower/cycle-005/static-bundle-verify/verify-stdout-20260214T042215Z.txt"
+  }
+}

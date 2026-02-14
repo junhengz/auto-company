@@ -12,7 +12,7 @@ on:
           - vercel
           - cloudflare_pages
       base_url:
-        description: "Optional BASE_URL to validate after redeploy (expects /api/workflow/env-health). If empty, best-effort discovery is attempted."
+        description: "Optional BASE_URL (single origin) to validate after redeploy (expects /api/workflow/env-health). If empty, uses repo variable HOSTED_WORKFLOW_BASE_URL."
         required: false
         default: ""
       poll_timeout_seconds:
@@ -30,7 +30,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Preflight: required Supabase secrets (source of truth for hosting sync)
+      - name: "Preflight: required Supabase secrets (source of truth for hosting sync)"
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -47,6 +47,7 @@ jobs:
           POLL_INTERVAL_SECONDS: "10"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          HOSTED_WORKFLOW_BASE_URL: ${{ vars.HOSTED_WORKFLOW_BASE_URL }}
 
           # Supabase values to sync into hosted runtime:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -66,12 +67,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CF_PAGES_PROJECT: ${{ vars.CF_PAGES_PROJECT }}
           CF_PAGES_BUILD_HOOK_URL: ${{ secrets.CF_PAGES_BUILD_HOOK_URL }}
-
-          # Optional BASE_URL discovery sources (same precedence as Cycle 005 evidence workflow):
-          HOSTED_WORKFLOW_BASE_URL_CANDIDATES: ${{ vars.HOSTED_WORKFLOW_BASE_URL_CANDIDATES }}
-          CYCLE_005_BASE_URL_CANDIDATES: ${{ vars.CYCLE_005_BASE_URL_CANDIDATES }}
-          HOSTED_BASE_URL_CANDIDATES: ${{ vars.HOSTED_BASE_URL_CANDIDATES }}
-          WORKFLOW_APP_BASE_URL_CANDIDATES: ${{ vars.WORKFLOW_APP_BASE_URL_CANDIDATES }}
         run: |
           set -euo pipefail
 
@@ -79,40 +74,14 @@ jobs:
           base="${BASE_URL:-}"
 
           if [ -z "$base" ]; then
-            candidates=""
-            if [ -n "${HOSTED_WORKFLOW_BASE_URL_CANDIDATES:-}" ]; then
-              candidates="${HOSTED_WORKFLOW_BASE_URL_CANDIDATES}"
-            elif [ -n "${CYCLE_005_BASE_URL_CANDIDATES:-}" ]; then
-              candidates="${CYCLE_005_BASE_URL_CANDIDATES}"
-            elif [ -n "${HOSTED_BASE_URL_CANDIDATES:-}" ]; then
-              candidates="${HOSTED_BASE_URL_CANDIDATES}"
-            elif [ -n "${WORKFLOW_APP_BASE_URL_CANDIDATES:-}" ]; then
-              candidates="${WORKFLOW_APP_BASE_URL_CANDIDATES}"
-            else
-              candidates="$(
-                ./projects/security-questionnaire-autopilot/scripts/collect-base-url-candidates-from-github-deployments.sh \
-                  | tr '\n' ' ' | tr -s ' ' | sed 's/^ *//; s/ *$//' || true
-              )"
-              if [ -z "${candidates:-}" ]; then
-                candidates="$(
-                  ./projects/security-questionnaire-autopilot/scripts/collect-base-url-candidates-from-hosting.sh \
-                    | tr '\n' ' ' | tr -s ' ' | sed 's/^ *//; s/ *$//' || true
-                )"
-              fi
-            fi
-
-            if [ -n "${candidates:-}" ]; then
-              export BASE_URL_CANDIDATES="${candidates}"
-              export ALLOW_MISSING_SUPABASE_ENV=1
-              base="$(./projects/security-questionnaire-autopilot/scripts/discover-hosted-base-url.sh)"
-            fi
+            base="${HOSTED_WORKFLOW_BASE_URL:-}"
           fi
 
           case "$provider" in
             vercel)
               test -n "${VERCEL_TOKEN:-}" || (echo "Missing secret: VERCEL_TOKEN" >&2; exit 2)
               test -n "${VERCEL_PROJECT_ID:-${VERCEL_PROJECT:-}}" || (echo "Missing repo var: VERCEL_PROJECT_ID or VERCEL_PROJECT" >&2; exit 2)
-              test -n "${base:-}" || (echo "Missing BASE_URL. Provide inputs.base_url or set HOSTED_WORKFLOW_BASE_URL_CANDIDATES (or configure hosting discovery)." >&2; exit 2)
+              test -n "${base:-}" || (echo "Missing BASE_URL. Provide inputs.base_url or set repo variable HOSTED_WORKFLOW_BASE_URL." >&2; exit 2)
               ENV_HEALTH_TIMEOUT_SECS="${POLL_TIMEOUT_SECONDS}" \
                 ./projects/security-questionnaire-autopilot/scripts/vercel-sync-supabase-env.sh "$base"
               ;;
