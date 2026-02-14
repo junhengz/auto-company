@@ -82,6 +82,26 @@ if [ -z "${OUT:-}" ]; then
   OUT="$EVID_DIR/workflow-dispatch-$ts.json"
 fi
 
+viewer_perm="$(gh repo view "$REPO" --json viewerPermission -q .viewerPermission 2>/dev/null || true)"
+case "${viewer_perm:-}" in
+  ADMIN|MAINTAIN|WRITE) ;;
+  *)
+    jq -n \
+      --arg checked_at_utc "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+      --arg repo "$REPO" \
+      --arg workflow "$WORKFLOW" \
+      --arg ref "$REF" \
+      --arg viewer_permission "${viewer_perm:-unknown}" \
+      --arg supabase_project_name "$SUPABASE_PROJECT_NAME" \
+      --arg reuse_existing "$REUSE_EXISTING" \
+      --arg sql_bundle "$SQL_BUNDLE" \
+      '{checked_at_utc:$checked_at_utc, repo:$repo, workflow:$workflow, ref:$ref, viewer_permission:$viewer_permission, inputs:{supabase_project_name:$supabase_project_name, reuse_existing:$reuse_existing, sql_bundle:$sql_bundle}, error:"Insufficient repo permission to dispatch workflows. Pass --repo OWNER/REPO where you have >= WRITE."}' \
+      >"$OUT"
+    echo "ERROR: insufficient permission to dispatch workflows for repo=$REPO (viewerPermission=${viewer_perm:-unknown}). Evidence: $OUT" >&2
+    exit 2
+    ;;
+esac
+
 start="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 args=(workflow run "$WORKFLOW" -R "$REPO"
@@ -93,7 +113,29 @@ if [ -n "${REF:-}" ]; then
   args+=(--ref "$REF")
 fi
 
-gh "${args[@]}" >/dev/null
+tmp_err="$(mktemp)"
+cleanup() { rm -f "$tmp_err" >/dev/null 2>&1 || true; }
+trap cleanup EXIT
+
+if ! gh "${args[@]}" >/dev/null 2>"$tmp_err"; then
+  # Inputs are non-secret; safe to include. Stderr may include GH errors, also safe.
+  err="$(tail -c 2000 "$tmp_err" 2>/dev/null || true)"
+  jq -n \
+    --arg checked_at_utc "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+    --arg repo "$REPO" \
+    --arg workflow "$WORKFLOW" \
+    --arg ref "$REF" \
+    --arg start "$start" \
+    --arg viewer_permission "${viewer_perm:-}" \
+    --arg supabase_project_name "$SUPABASE_PROJECT_NAME" \
+    --arg reuse_existing "$REUSE_EXISTING" \
+    --arg sql_bundle "$SQL_BUNDLE" \
+    --arg gh_error "$err" \
+    '{checked_at_utc:$checked_at_utc, repo:$repo, workflow:$workflow, ref:$ref, viewer_permission:$viewer_permission, dispatch_started_at_utc:$start, inputs:{supabase_project_name:$supabase_project_name, reuse_existing:$reuse_existing, sql_bundle:$sql_bundle}, error:"gh workflow run failed", gh_error:$gh_error}' \
+    >"$OUT"
+  echo "ERROR: gh workflow run failed. Evidence: $OUT" >&2
+  exit 2
+fi
 
 # Resolve run id by polling the workflow runs API (workflows/<file>/runs).
 run_id=""

@@ -90,59 +90,77 @@ if [ -z "${OUT:-}" ]; then
   OUT="$EVID_DIR/artifact-fetch-$ts-run-$RUN_ID.json"
 fi
 
-mkdir -p "$DEST"
+# Make repeated downloads idempotent: if the dest is non-empty, download into a new timestamped subdir.
+dl_dest="$DEST"
+if [ -d "$dl_dest" ] && [ -n "$(find "$dl_dest" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null || true)" ]; then
+  dl_dest="$DEST/download-$ts"
+fi
+mkdir -p "$dl_dest"
 
-if ! gh run download -R "$REPO" "$RUN_ID" -n "$ARTIFACT_NAME" -D "$DEST" >/dev/null 2>&1; then
+if ! gh run download -R "$REPO" "$RUN_ID" -n "$ARTIFACT_NAME" -D "$dl_dest" >/dev/null 2>&1; then
   jq -n \
     --arg checked_at_utc "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
     --arg repo "$REPO" \
     --arg run_id "$RUN_ID" \
     --arg artifact "$ARTIFACT_NAME" \
-    --arg dest "$DEST" \
+    --arg dest "$dl_dest" \
     '{checked_at_utc:$checked_at_utc, repo:$repo, run_id:($run_id|tonumber), artifact:$artifact, dest:$dest, error:"Failed to download artifact (missing artifact name, permissions, or run id)."}' \
     >"$OUT"
   echo "ERROR: artifact download failed. Evidence: $OUT" >&2
   echo "Debug:" >&2
   echo "  gh run view -R \"$REPO\" \"$RUN_ID\"" >&2
-  echo "  gh run download -R \"$REPO\" \"$RUN_ID\" -D \"$DEST\"" >&2
+  echo "  gh run download -R \"$REPO\" \"$RUN_ID\" -D \"$dl_dest\"" >&2
   exit 2
 fi
 
-verify_src="$DEST/projects/security-questionnaire-autopilot/runs/supabase-verify.json"
 verify_dst="$EVID_DIR/supabase-verify-run-$RUN_ID.json"
-conn_src="$DEST/projects/security-questionnaire-autopilot/runs/supabase-connection-nonsecret.txt"
 conn_dst="$EVID_DIR/supabase-connection-nonsecret-run-$RUN_ID.txt"
-prov_src="$DEST/projects/security-questionnaire-autopilot/runs/supabase-provision-summary.json"
 prov_dst="$EVID_DIR/supabase-provision-summary-run-$RUN_ID.json"
+
+# Artifact structure can vary (some uploads preserve workspace-relative paths; others flatten).
+# Prefer the canonical workspace-relative path, but fall back to a recursive search by filename.
+verify_src="$dl_dest/projects/security-questionnaire-autopilot/runs/supabase-verify.json"
+conn_src="$dl_dest/projects/security-questionnaire-autopilot/runs/supabase-connection-nonsecret.txt"
+prov_src="$dl_dest/projects/security-questionnaire-autopilot/runs/supabase-provision-summary.json"
+
+if [ ! -f "$verify_src" ]; then
+  verify_src="$(find "$dl_dest" -type f -name 'supabase-verify.json' -print -quit 2>/dev/null || true)"
+fi
+if [ ! -f "$conn_src" ]; then
+  conn_src="$(find "$dl_dest" -type f -name 'supabase-connection-nonsecret.txt' -print -quit 2>/dev/null || true)"
+fi
+if [ ! -f "$prov_src" ]; then
+  prov_src="$(find "$dl_dest" -type f -name 'supabase-provision-summary.json' -print -quit 2>/dev/null || true)"
+fi
 
 copied=()
 verify_present="false"
 conn_present="false"
 prov_present="false"
-if [ -f "$verify_src" ]; then
+if [ -n "${verify_src:-}" ] && [ -f "$verify_src" ]; then
   cp "$verify_src" "$verify_dst"
   copied+=("$verify_dst")
   verify_present="true"
 fi
-if [ -f "$conn_src" ]; then
+if [ -n "${conn_src:-}" ] && [ -f "$conn_src" ]; then
   cp "$conn_src" "$conn_dst"
   copied+=("$conn_dst")
   conn_present="true"
 fi
-if [ -f "$prov_src" ]; then
+if [ -n "${prov_src:-}" ] && [ -f "$prov_src" ]; then
   cp "$prov_src" "$prov_dst"
   copied+=("$prov_dst")
   prov_present="true"
 fi
 
-files_json="$(find "$DEST" -type f -maxdepth 6 -print 2>/dev/null | sed "s#^$DEST/##" | jq -R . | jq -s .)"
+files_json="$(find "$dl_dest" -type f -maxdepth 6 -print 2>/dev/null | sed "s#^$dl_dest/##" | jq -R . | jq -s .)"
 
 jq -n \
   --arg checked_at_utc "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
   --arg repo "$REPO" \
   --arg run_id "$RUN_ID" \
   --arg artifact "$ARTIFACT_NAME" \
-  --arg dest "$DEST" \
+  --arg dest "$dl_dest" \
   --arg verify_src "$verify_src" \
   --arg verify_dst "$verify_dst" \
   --arg verify_present "$verify_present" \
