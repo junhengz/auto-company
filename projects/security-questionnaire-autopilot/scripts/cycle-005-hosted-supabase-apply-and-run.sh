@@ -5,7 +5,8 @@ BASE_URL="${1:-http://localhost:3000}"
 RUN_ID="${2:-pilot-001-customer-originated-$(date +%Y%m%d-%H%M%S)}"
 BASE_URL="${BASE_URL%/}"
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Repo root (this script lives in projects/security-questionnaire-autopilot/scripts).
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 PROJECT="$ROOT/projects/security-questionnaire-autopilot"
 QA_DIR="$ROOT/docs/qa"
 DEVOPS_DIR="$ROOT/docs/devops"

@@ -630,6 +630,10 @@ if [ -z "${run_dbid:-}" ] || [ "${run_dbid:-}" = "null" ]; then
 fi
 
 run_url="$(gh run view -R "$REPO" "$run_dbid" --json htmlUrl -q '.htmlUrl' 2>/dev/null || true)"
+if [ -z "${run_url:-}" ] || [ "${run_url:-}" = "null" ]; then
+  # Newer gh versions expose the web URL as `url` (not `htmlUrl`).
+  run_url="$(gh run view -R "$REPO" "$run_dbid" --json url -q '.url' 2>/dev/null || true)"
+fi
 echo "GHA run databaseId: $run_dbid"
 if [ -n "${run_url:-}" ] && [ "${run_url:-}" != "null" ]; then
   echo "GHA run url: $run_url"

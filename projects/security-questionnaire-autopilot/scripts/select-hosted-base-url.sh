@@ -14,7 +14,8 @@ set -euo pipefail
 #
 # Output: prints the selected BASE_URL (single line) to stdout.
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Repo root (this script lives in projects/security-questionnaire-autopilot/scripts).
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 PROJECT="$ROOT/projects/security-questionnaire-autopilot"
 
 DISCOVER="$PROJECT/scripts/discover-hosted-base-url.sh"

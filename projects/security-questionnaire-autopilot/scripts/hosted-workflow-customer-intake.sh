@@ -6,7 +6,8 @@ RUN_ID="${2:-pilot-001-customer-originated-$(date +%Y%m%d-%H%M%S)}"
 OUT_DIR="${3:-/tmp/hosted-intake-${RUN_ID}}"
 BASE_URL="${BASE_URL%/}"
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Repo root (this script lives in projects/security-questionnaire-autopilot/scripts).
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SALES_DIR="$ROOT/docs/sales"
 
 QUESTIONNAIRE_CSV_FILE="${QUESTIONNAIRE_CSV_FILE:-$SALES_DIR/cycle-004-pilot-001-customer-questionnaire.csv}"

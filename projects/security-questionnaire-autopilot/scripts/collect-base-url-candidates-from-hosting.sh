@@ -11,7 +11,8 @@ set -euo pipefail
 # - HOSTING_DISCOVERY_DIAG=1: do not silence provider stderr
 # - HOSTING_DISCOVERY_STRICT=1: pass STRICT=1 to providers (they will print actionable errors)
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Repo root (this script lives in projects/security-questionnaire-autopilot/scripts).
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SCRIPTS_DIR="$ROOT/projects/security-questionnaire-autopilot/scripts"
 
 HOSTING_DISCOVERY_DIAG="${HOSTING_DISCOVERY_DIAG:-0}"

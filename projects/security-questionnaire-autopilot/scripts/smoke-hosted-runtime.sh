@@ -35,7 +35,8 @@ if [ -z "${BASE_URL_RAW:-}" ]; then
   exit 2
 fi
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Repo root (this script lives in projects/security-questionnaire-autopilot/scripts).
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 HELPER="$ROOT/projects/security-questionnaire-autopilot/scripts/print-hosted-supabase-env-setup-help.sh"
 
 require_bin() {
