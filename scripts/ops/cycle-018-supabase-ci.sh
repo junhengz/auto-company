@@ -11,13 +11,13 @@ set -euo pipefail
 # What it does:
 # 1) Verify required repo secrets exist (SUPABASE_ACCESS_TOKEN, SUPABASE_ORG_SLUG, SUPABASE_DB_PASSWORD)
 # 2) Optionally set missing secrets from env (or prompt)
-# 3) Dispatch `.github/workflows/cycle-005-supabase-provision-apply-verify.yml`
+# 3) Dispatch `.github/workflows/cycle-005-supabase-provision-apply-verify-dispatch.yml`
 # 4) Wait for completion and download run artifacts (including supabase-verify.json)
 # 5) Write evidence into docs/operations-pg/...
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-WORKFLOW_FILE_DEFAULT=".github/workflows/cycle-005-supabase-provision-apply-verify.yml"
+WORKFLOW_FILE_DEFAULT=".github/workflows/cycle-005-supabase-provision-apply-verify-dispatch.yml"
 SQL_BUNDLE_DEFAULT="projects/security-questionnaire-autopilot/supabase/bundles/20260213_cycle003_hosted_workflow_migration_plus_seed.sql"
 SUPABASE_PROJECT_NAME_DEFAULT="security-questionnaire-autopilot-cycle-005"
 REUSE_EXISTING_DEFAULT="true"
@@ -38,7 +38,7 @@ Usage:
 Options:
   --repo <owner/name>                 Override repo (default: inferred from `gh repo view`)
   --ref <branch>                      Dispatch ref (default: repo default branch)
-  --workflow <path-or-name>           Workflow file/name (default: .github/workflows/cycle-005-supabase-provision-apply-verify.yml)
+  --workflow <path-or-name>           Workflow file/name (default: .github/workflows/cycle-005-supabase-provision-apply-verify-dispatch.yml)
   --supabase-project-name <name>      Workflow input (default: security-questionnaire-autopilot-cycle-005)
   --reuse-existing <true|false>       Workflow input (default: true)
   --sql-bundle <workspace-path>        Workflow input (default: projects/security-questionnaire-autopilot/supabase/bundles/20260213_cycle003_hosted_workflow_migration_plus_seed.sql)

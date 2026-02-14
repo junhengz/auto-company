@@ -117,7 +117,7 @@ secrets_args+=(--out-json "$EVID_DIR/secrets-$ts.json" --out-log "$EVID_DIR/secr
 dispatch_args=(
   "$ROOT/scripts/devops/gha-workflow-dispatch.sh"
   "${REPO_ARG[@]}"
-  --workflow "cycle-005-supabase-provision-apply-verify.yml"
+  --workflow "cycle-005-supabase-provision-apply-verify-dispatch.yml"
   --supabase-project-name "$SUPABASE_PROJECT_NAME"
   --reuse-existing "$REUSE_EXISTING"
   --sql-bundle "$SQL_BUNDLE"
@@ -149,4 +149,3 @@ fi
   --out "$EVID_DIR/runs/$RUN_ID-$ts/artifact-fetch.json"
 
 echo "OK. Evidence in: $EVID_DIR" >&2
-

@@ -105,14 +105,14 @@ fi
 REPO_ARG=()
 if [ -n "${REPO:-}" ]; then REPO_ARG=(--repo "$REPO"); fi
 
-dispatch_args=(
-  "$ROOT/scripts/devops/gha-workflow-dispatch.sh"
-  "${REPO_ARG[@]}"
-  --workflow "cycle-005-supabase-provision-apply-verify.yml"
-  --supabase-project-name "$SUPABASE_PROJECT_NAME"
-  --reuse-existing "$REUSE_EXISTING"
-  --sql-bundle "$SQL_BUNDLE"
-)
+  dispatch_args=(
+    "$ROOT/scripts/devops/gha-workflow-dispatch.sh"
+    "${REPO_ARG[@]}"
+    --workflow "cycle-005-supabase-provision-apply-verify-dispatch.yml"
+    --supabase-project-name "$SUPABASE_PROJECT_NAME"
+    --reuse-existing "$REUSE_EXISTING"
+    --sql-bundle "$SQL_BUNDLE"
+  )
 if [ -n "${REF:-}" ]; then
   dispatch_args+=(--ref "$REF")
 fi

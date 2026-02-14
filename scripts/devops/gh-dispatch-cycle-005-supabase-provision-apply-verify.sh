@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Operator wrapper:
-# - dispatch `.github/workflows/cycle-005-supabase-provision-apply-verify.yml`
+# - dispatch `.github/workflows/cycle-005-supabase-provision-apply-verify-dispatch.yml`
 # - wait for completion
 # - download artifact `cycle-005-supabase-provision-apply-verify`
 # - copy key evidence files into docs/qa-bach/
@@ -106,7 +106,7 @@ if [ -z "${OUT_DIR:-}" ]; then
 fi
 mkdir -p "$OUT_DIR"
 
-wf="cycle-005-supabase-provision-apply-verify.yml"
+wf="cycle-005-supabase-provision-apply-verify-dispatch.yml"
 artifact_name="cycle-005-supabase-provision-apply-verify"
 
 start_ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -206,4 +206,3 @@ if copy_first "supabase-verify.json" "$OUT_DIR/supabase-verify.json"; then
 else
   echo "Artifact did not include supabase-verify.json (see $OUT_DIR/artifact)." >&2
 fi
-

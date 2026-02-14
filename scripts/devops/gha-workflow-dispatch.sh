@@ -10,7 +10,7 @@ Usage:
 
 Flags:
   --repo OWNER/REPO          (default: inferred via gh or git remote)
-  --workflow FILE.yml        (default: cycle-005-supabase-provision-apply-verify.yml)
+  --workflow FILE.yml        (default: cycle-005-supabase-provision-apply-verify-dispatch.yml)
   --ref REF                  optional git ref (branch/tag/SHA) to run workflow from
   --supabase-project-name N  (default: security-questionnaire-autopilot-cycle-005)
   --reuse-existing true|false (default: true)
@@ -41,7 +41,7 @@ EVID_DIR="$ROOT/docs/devops/evidence"
 mkdir -p "$EVID_DIR"
 
 REPO=""
-WORKFLOW="cycle-005-supabase-provision-apply-verify.yml"
+WORKFLOW="cycle-005-supabase-provision-apply-verify-dispatch.yml"
 REF=""
 SUPABASE_PROJECT_NAME="security-questionnaire-autopilot-cycle-005"
 REUSE_EXISTING="true"
@@ -158,4 +158,3 @@ echo "Evidence: $OUT" >&2
 if [ "$PRINT_RUN_ID" = "1" ]; then
   printf '%s\n' "$run_id"
 fi
-

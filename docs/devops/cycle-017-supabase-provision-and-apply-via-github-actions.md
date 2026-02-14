@@ -5,7 +5,7 @@ Goal: remove local-machine credential/CLI blockers by running Supabase provision
 ## Workflows
 
 1. Provision + apply + verify (preferred):
-- `.github/workflows/cycle-005-supabase-provision-apply-verify.yml`
+- `.github/workflows/cycle-005-supabase-provision-apply-verify-dispatch.yml`
 
 2. Apply only (when a project already exists):
 - `.github/workflows/cycle-005-supabase-apply.yml`

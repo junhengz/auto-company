@@ -3,7 +3,7 @@
 Date: 2026-02-14
 Owner: devops-hightower
 
-Goal: remove the last manual blocker by making it copy/paste-able to (1) set required GitHub Actions secrets and (2) dispatch the shipped workflow `.github/workflows/cycle-005-supabase-provision-apply-verify.yml`, then (3) download evidence artifacts including `supabase-verify.json`.
+Goal: remove the last manual blocker by making it copy/paste-able to (1) set required GitHub Actions secrets and (2) dispatch the shipped workflow `.github/workflows/cycle-005-supabase-provision-apply-verify-dispatch.yml`, then (3) download evidence artifacts including `supabase-verify.json`.
 
 Note:
 - Canonical, evidence-producing runbook for this flow: `docs/devops/cycle-018-ci-supabase-provision-apply-secrets-dispatch-artifacts.md`

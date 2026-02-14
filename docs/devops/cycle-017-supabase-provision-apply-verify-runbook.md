@@ -24,7 +24,7 @@ Convenience runner (sets secrets optionally, dispatches, downloads evidence):
 - Runbook: `docs/devops/cycle-018-supabase-gha-secrets-and-dispatch.md`
 
 Workflow:
-- `.github/workflows/cycle-005-supabase-provision-apply-verify.yml`
+- `.github/workflows/cycle-005-supabase-provision-apply-verify-dispatch.yml`
 
 Behavior (end-to-end):
 1. Provision (or reuse) the project via Management API.

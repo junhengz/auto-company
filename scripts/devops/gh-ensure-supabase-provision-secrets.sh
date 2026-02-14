@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Ensure required GitHub Actions repo secrets exist for:
-#   .github/workflows/cycle-005-supabase-provision-apply-verify.yml
+#   .github/workflows/cycle-005-supabase-provision-apply-verify-dispatch.yml
 #
 # Required secrets (names only):
 #   - SUPABASE_ACCESS_TOKEN
