@@ -92,6 +92,7 @@ Recommended inputs:
 - `base_url`: leave empty if you set repo variable `HOSTED_WORKFLOW_BASE_URL_CANDIDATES` (recommended)
 - `skip_sql_apply`: `true` (preferred path is applying SQL via Supabase Dashboard SQL Editor first)
 - `preflight_only`: defaults to `true` for manual dispatch; set `preflight_only=false` to create/update the evidence PR
+- `enable_autorun_after_preflight`: set `true` only after a green preflight if you want the workflow to set `CYCLE_005_AUTORUN_ENABLED=true` for you
 
 Pass criteria:
 
@@ -114,6 +115,8 @@ Preflight-only (BASE_URL selection + env checks only; no evidence + no PR):
   --candidates-file docs/devops/base-url-candidates.template.txt \
   --preflight-only
 ```
+
+Note: `preflight_only=true` is read-only and does not apply SQL. If preflight fails on `supabase-health`, apply the SQL bundle first (Dashboard or `.github/workflows/cycle-005-supabase-apply.yml`), then rerun preflight.
 
 Optional hardening (recommended if you want fail-fast fallback behavior):
 
