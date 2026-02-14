@@ -90,6 +90,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Guardrails (preflight-only is read-only)
+        # Preflight-only mode intentionally does not apply SQL. Enforce a consistent, low-risk surface.
+        if: ${{ env.INPUT_PREFLIGHT_ONLY == 'true' && env.INPUT_SKIP_SQL_APPLY != 'true' }}
+        run: |
+          set -euo pipefail
+          echo "Invalid inputs: preflight_only=true requires skip_sql_apply=true." >&2
+          echo "" >&2
+          echo "Reason: preflight-only mode does not run SQL apply or evidence capture. It only validates BASE_URL + hosted env-health (+ supabase-health)." >&2
+          echo "Fix: re-run with skip_sql_apply=true (default), or run a full evidence run with preflight_only=false if you intend to apply SQL." >&2
+          exit 2
+
       - name: Persist BASE_URL candidates to repo variable (optional; workflow_dispatch only)
         if: ${{ github.event_name == 'workflow_dispatch' && env.INPUT_PERSIST_BASE_URL_CANDIDATES == 'true' && (env.INPUT_BASE_URL != '' || env.INPUT_BASE_URL_CANDIDATES != '') }}
         env:
