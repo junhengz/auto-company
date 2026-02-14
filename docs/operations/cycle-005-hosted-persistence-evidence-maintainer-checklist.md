@@ -23,6 +23,14 @@ Safety properties to sanity check in review:
 - Workflow probes candidate origins and refuses marketing/static sites (requires `/api/workflow/env-health`).
 - PR branch is stable (`cycle-005-hosted-persistence-evidence`) to avoid infinite PR creation.
 
+### 1b) Know what “preflight-only” does and does not do
+`preflight_only=true` is intentionally read-only:
+- It selects a valid deployed `BASE_URL`.
+- It enforces hosted runtime env vars via `/api/workflow/env-health`.
+- It runs `/api/workflow/supabase-health` when `skip_sql_apply=true` (default), to verify schema + seed is already in place.
+- It does not apply SQL.
+- It does not run intake, write evidence, or open a PR.
+
 ### 2) Set the correct deployed BASE_URL candidates
 Set repo variable (recommended):
 - Variable: `HOSTED_WORKFLOW_BASE_URL_CANDIDATES`
@@ -67,6 +75,37 @@ References:
 - `docs/devops/cycle-005-vercel-env-sync-and-redeploy.md` (optional automation)
 - `docs/devops/cycle-005-cloudflare-pages-env-sync.md` (optional automation)
 
+## Repo Variables and Secrets (What You Actually Need)
+
+Preflight-only run (`preflight_only=true`, default):
+- Required repo variables:
+  - `HOSTED_WORKFLOW_BASE_URL_CANDIDATES` (2-4 origins)
+- Required hosting-provider env vars (on the deployed runtime, not GitHub):
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `SUPABASE_SERVICE_ROLE_KEY`
+- GitHub secrets:
+  - none required for the happy path
+
+Full evidence run (`preflight_only=false`):
+- Required:
+  - same as preflight-only (BASE_URL candidates + hosted runtime env vars)
+- Required only if you need CI to apply SQL (`skip_sql_apply=false`):
+  - GitHub secret `SUPABASE_DB_URL` (direct Postgres connection string)
+- Optional (recommended for resilience):
+  - GitHub secrets `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (used only for fallback DB evidence fetch if the hosted runtime DB-evidence endpoint fails)
+  - Set input `require_fallback_supabase_secrets=true` to fail-fast if you want to enforce those secrets exist.
+
+Optional provider automation (only if you want the workflow to auto-fix missing hosted env vars):
+- Vercel:
+  - GitHub secret `VERCEL_TOKEN`
+  - Repo variable `VERCEL_PROJECT_ID` or `VERCEL_PROJECT`
+  - Optional repo variables `VERCEL_TEAM_ID` or `VERCEL_TEAM_SLUG`
+  - Optional GitHub secret `VERCEL_DEPLOY_HOOK_URL` (to trigger redeploy)
+- Cloudflare Pages:
+  - GitHub secret `CLOUDFLARE_API_TOKEN`
+  - Repo variables `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT`
+  - Optional GitHub secret `CF_PAGES_DEPLOY_HOOK_URL`
+
 ## First Run (Preflight) (5 min)
 
 ### Option A: run in GitHub Actions UI
@@ -80,6 +119,10 @@ Pass criteria:
 - Artifact uploaded:
   - `cycle-005-hosted-preflight`
 - No PR is expected in preflight-only mode.
+
+If it fails on `supabase-health`:
+- That means schema/seed is not in place yet.
+- Apply the SQL bundle via Supabase Dashboard SQL Editor (or run `.github/workflows/cycle-005-supabase-apply.yml` if you have it wired), then rerun preflight.
 
 ### Option B: run from terminal (preferred if you have `gh` permissions)
 ```bash
@@ -117,6 +160,10 @@ If you want the safe maintainer flow (set candidates once, run preflight-only, t
   --set-variable \
   --enable-autorun-after-preflight
 ```
+Or in the Actions UI, set:
+- `preflight_only=true`
+- `enable_autorun_after_preflight=true`
+
 If you want this to run on schedule afterward:
 ```bash
 ./scripts/devops/run-cycle-005-hosted-persistence-evidence.sh --enable-autorun
