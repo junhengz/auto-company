@@ -15,7 +15,7 @@ As of 2026-02-14, `junhengz/auto-company` has **no discoverable production deplo
 
 Evidence signals:
 - GitHub Deployments metadata for the repo is empty (`/repos/junhengz/auto-company/deployments` returns `[]`).
-- Repo variable `HOSTED_WORKFLOW_BASE_URL_CANDIDATES` does not exist (`/actions/variables/HOSTED_WORKFLOW_BASE_URL_CANDIDATES` is `404`).
+- Repo variable `HOSTED_WORKFLOW_BASE_URL_CANDIDATES` is not reliably usable until a real hosted runtime exists. If it is ever set to a marketing/static origin (e.g., `https://auto-company.pages.dev`), it will cause deterministic preflight failures.
 - Public candidate origins probed to date either:
   - return Vercel `DEPLOYMENT_NOT_FOUND` (HTTP 404), or
   - serve a marketing/static site (e.g., Cloudflare Pages `auto-company.pages.dev` returns `text/html` and identifies as Astro).
