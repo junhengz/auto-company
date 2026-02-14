@@ -65,6 +65,9 @@ Operator command (run against a branch that contains the workflow change):
 
 This is a deliberate “get signal, not certainty” mode: it validates the runtime contract and the preflight plumbing, but it does **not** prove the hosted Supabase-backed runtime is correctly deployed.
 
+Observed result (green preflight):
+- GitHub Actions run `22011679812` on ref `qa-bach/local-runtime-preflight` completed with conclusion `success`.
+- Selected BASE_URL was `http://127.0.0.1:18080` and `env-health` reported both env booleans `true`.
+
 ## Next Action
 Pick the actual hosting provider/project for the workflow runtime (Vercel or Cloudflare Pages), deploy `projects/security-questionnaire-autopilot`, then set `HOSTED_WORKFLOW_BASE_URL_CANDIDATES` to 2-4 stable production origins and rerun `make cycle-005-preflight` with `preflight_require_supabase_health=true` (default).
-
