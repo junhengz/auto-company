@@ -3,6 +3,22 @@ name: cycle-005-hosted-persistence-evidence
 on:
   workflow_dispatch:
     inputs:
+      persist_base_url_candidates:
+        description: "If true, persist the provided base_url/base_url_candidates into repo variable HOSTED_WORKFLOW_BASE_URL_CANDIDATES (formatted + de-duplicated). Use this to set candidates once, then leave base_url empty on future runs."
+        type: boolean
+        required: true
+        default: false
+      preflight_only:
+        description: "If true, only run BASE_URL selection + env-health (+ supabase-health when skip_sql_apply=true) and upload preflight artifacts. Skips intake, DB evidence capture, and PR creation."
+        type: boolean
+        required: true
+        # Safer default: manual runs should validate BASE_URL + hosted env before writing evidence/PRs.
+        default: true
+      enable_autorun_after_preflight:
+        description: "If true (and preflight_only=true), set repo variable CYCLE_005_AUTORUN_ENABLED=true after a green preflight. This enables scheduled evidence refresh runs."
+        type: boolean
+        required: true
+        default: false
       base_url:
         description: "Optional: 2-4 candidate BASE_URLs (comma/space/newline separated). If empty, uses repo variable HOSTED_WORKFLOW_BASE_URL_CANDIDATES (recommended), then falls back to legacy vars (CYCLE_005_BASE_URL_CANDIDATES, HOSTED_BASE_URL_CANDIDATES, WORKFLOW_APP_BASE_URL_CANDIDATES), then GitHub Deployments discovery (if present). Candidates must be the deployed Next.js app serving /api/workflow/* (not marketing/static site)."
         required: false
@@ -39,24 +55,106 @@ on:
         type: boolean
         required: true
         default: false
+  schedule:
+    # Autonomous retry loop: once repo vars/secrets are configured, this will generate Cycle 005 evidence
+    # without requiring an operator to have `gh workflow run` permissions.
+    - cron: "17 */6 * * *"
 
 jobs:
   run:
     runs-on: ubuntu-latest
+    concurrency:
+      group: cycle-005-hosted-persistence-evidence
+      cancel-in-progress: false
     permissions:
+      actions: write
       contents: write
       pull-requests: write
       deployments: read
+    env:
+      # Defaults for non-workflow_dispatch triggers (e.g., schedule).
+      INPUT_PREFLIGHT_ONLY: ${{ github.event.inputs.preflight_only || 'false' }}
+      INPUT_PERSIST_BASE_URL_CANDIDATES: ${{ github.event.inputs.persist_base_url_candidates || 'false' }}
+      INPUT_ENABLE_AUTORUN_AFTER_PREFLIGHT: ${{ github.event.inputs.enable_autorun_after_preflight || 'false' }}
+      INPUT_BASE_URL: ${{ github.event.inputs.base_url || '' }}
+      INPUT_BASE_URL_CANDIDATES: ${{ github.event.inputs.base_url_candidates || '' }}
+      INPUT_RUN_ID: ${{ github.event.inputs.run_id || '' }}
+      INPUT_SKIP_SQL_APPLY: ${{ github.event.inputs.skip_sql_apply || 'true' }}
+      INPUT_SQL_BUNDLE: ${{ github.event.inputs.sql_bundle || 'projects/security-questionnaire-autopilot/supabase/bundles/20260213_cycle003_hosted_workflow_migration_plus_seed.sql' }}
+      INPUT_REQUIRE_FALLBACK_SUPABASE_SECRETS: ${{ github.event.inputs.require_fallback_supabase_secrets || 'false' }}
+      INPUT_ATTEMPT_VERCEL_ENV_SYNC: ${{ github.event.inputs.attempt_vercel_env_sync || 'true' }}
+      INPUT_ATTEMPT_CLOUDFLARE_PAGES_ENV_SYNC: ${{ github.event.inputs.attempt_cloudflare_pages_env_sync || 'false' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Persist BASE_URL candidates to repo variable (optional; workflow_dispatch only)
+        if: ${{ github.event_name == 'workflow_dispatch' && env.INPUT_PERSIST_BASE_URL_CANDIDATES == 'true' && (env.INPUT_BASE_URL != '' || env.INPUT_BASE_URL_CANDIDATES != '') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RAW_CANDIDATES: ${{ env.INPUT_BASE_URL || env.INPUT_BASE_URL_CANDIDATES }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p preflight
+
+          var_name="HOSTED_WORKFLOW_BASE_URL_CANDIDATES"
+          raw="${RAW_CANDIDATES:-}"
+          printf '%s\n' "$raw" > preflight/input-base-url-candidates.raw.txt
+
+          formatted="$(
+            ./projects/security-questionnaire-autopilot/scripts/format-base-url-candidates.sh \
+              preflight/input-base-url-candidates.raw.txt
+          )"
+          printf '%s\n' "$formatted" > preflight/input-base-url-candidates.formatted.txt
+
+          payload="$(jq -nc --arg name "$var_name" --arg value "$formatted" '{name:$name,value:$value}')"
+
+          update_url="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/variables/${var_name}"
+          create_url="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/variables"
+
+          # Upsert behavior: PATCH if it exists, otherwise POST create.
+          code="$(
+            curl -sS -o preflight/github-api.actions-variables.patch.json -w "%{http_code}" \
+              -X PATCH \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$update_url" \
+              -d "$payload" || echo "000"
+          )"
+
+          if [ "$code" = "404" ]; then
+            code="$(
+              curl -sS -o preflight/github-api.actions-variables.post.json -w "%{http_code}" \
+                -X POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "$create_url" \
+                -d "$payload" || echo "000"
+            )"
+          fi
+
+          if [ "$code" != "201" ] && [ "$code" != "204" ]; then
+            echo "Failed to upsert repo variable ${var_name} (HTTP $code)." >&2
+            echo "Fallback: set it manually via Settings -> Secrets and variables -> Actions -> Variables." >&2
+            exit 2
+          fi
+
+          {
+            echo "- persisted_repo_variable: \`${var_name}\`"
+            echo "- persisted_candidates_source: \`workflow_dispatch input (base_url/base_url_candidates)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Assemble + probe deployed BASE_URL candidates (always)
         id: basecands
         env:
-          BASE_URL_CANDIDATES: ${{ inputs.base_url || inputs.base_url_candidates }}
+          BASE_URL_CANDIDATES: ${{ env.INPUT_BASE_URL || env.INPUT_BASE_URL_CANDIDATES }}
+          # For scheduled runs, require an explicit opt-in to avoid repeated evidence runs / PR spam.
+          CYCLE_005_AUTORUN_ENABLED: ${{ vars.CYCLE_005_AUTORUN_ENABLED }}
           HOSTED_WORKFLOW_BASE_URL_CANDIDATES: ${{ vars.HOSTED_WORKFLOW_BASE_URL_CANDIDATES }}
           CYCLE_005_BASE_URL_CANDIDATES: ${{ vars.CYCLE_005_BASE_URL_CANDIDATES }}
           HOSTED_BASE_URL_CANDIDATES: ${{ vars.HOSTED_BASE_URL_CANDIDATES }}
@@ -77,6 +175,22 @@ jobs:
           set -euo pipefail
 
           mkdir -p preflight
+
+          if [ "${GITHUB_EVENT_NAME:-}" = "schedule" ] && [ "${CYCLE_005_AUTORUN_ENABLED:-}" != "true" ]; then
+            echo "has_candidates=false" >> "$GITHUB_OUTPUT"
+            printf '%s\n' "" > preflight/base-url-candidates.txt
+            printf '%s\n' "scheduled run gated (set repo variable CYCLE_005_AUTORUN_ENABLED=true to enable)" > preflight/base-url-source.txt
+            printf '%s\n' "Skipping scheduled Cycle 005 run because CYCLE_005_AUTORUN_ENABLED is not true." > preflight/base-url-probe.txt
+            {
+              echo "## Cycle 005 Hosted Persistence Evidence"
+              echo ""
+              echo "- status: skipped (schedule gated)"
+              echo "- action_required: set repo variable CYCLE_005_AUTORUN_ENABLED=true to enable scheduled evidence runs"
+              echo "- example:"
+              echo "  - \`gh variable set CYCLE_005_AUTORUN_ENABLED -R ${GITHUB_REPOSITORY} --body true\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
 
           # Mirror select-hosted-base-url.sh precedence so the probe output matches selection behavior.
           candidate_source=""
@@ -113,10 +227,27 @@ jobs:
           printf '%s\n' "${candidates:-}" > preflight/base-url-candidates.txt
           printf '%s\n' "${candidate_source:-}" > preflight/base-url-source.txt
           if [ -n "${candidates:-}" ]; then
+            echo "has_candidates=true" >> "$GITHUB_OUTPUT"
             ./projects/security-questionnaire-autopilot/scripts/probe-hosted-base-url-candidates.sh "${candidates}" \
               | tee preflight/base-url-probe.txt
           else
+            echo "has_candidates=false" >> "$GITHUB_OUTPUT"
             printf '%s\n' "No BASE_URL candidates available after discovery." > preflight/base-url-probe.txt
+            {
+              echo "## Cycle 005 Hosted Persistence Evidence"
+              echo ""
+              echo "- status: no BASE_URL candidates"
+              echo "- action_required: set repo variable HOSTED_WORKFLOW_BASE_URL_CANDIDATES to 2-4 deployed origins"
+              echo "- example:"
+              echo "  - \`gh variable set HOSTED_WORKFLOW_BASE_URL_CANDIDATES -R ${GITHUB_REPOSITORY} --body \"https://app-1.example.com https://app-2.example.com\"\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            # Once schedule is enabled (CYCLE_005_AUTORUN_ENABLED=true), misconfiguration should be loud.
+            # For manual runs (workflow_dispatch), always fail so the operator gets an unambiguous red/green signal.
+            if [ "${GITHUB_EVENT_NAME:-}" = "workflow_dispatch" ] || [ "${GITHUB_EVENT_NAME:-}" = "schedule" ]; then
+              echo "Missing BASE_URL candidates; failing run." >&2
+              exit 2
+            fi
           fi
 
       - name: Upload BASE_URL probe artifacts (always)
@@ -132,6 +263,7 @@ jobs:
 
       - name: Select + validate deployed BASE_URL (fail-fast)
         id: baseurl
+        if: ${{ steps.basecands.outputs.has_candidates == 'true' }}
         run: |
           set -euo pipefail
 
@@ -172,8 +304,9 @@ jobs:
             echo "- Candidate source: \`${candidate_source:-unknown}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Preflight: env-health (capture)
+      - name: "Preflight: env-health (capture)"
         id: envhealth
+        if: ${{ steps.basecands.outputs.has_candidates == 'true' }}
         env:
           BASE_URL: ${{ steps.baseurl.outputs.base_url }}
         run: |
@@ -200,8 +333,8 @@ jobs:
             echo "- has_supabase_env: \`$has_env\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Auto-fix (Vercel): upsert Supabase env vars + redeploy (best-effort)
-        if: ${{ inputs.attempt_vercel_env_sync && steps.envhealth.outputs.has_env != 'true' && secrets.VERCEL_TOKEN != '' && (vars.VERCEL_PROJECT_ID != '' || vars.VERCEL_PROJECT != '') }}
+      - name: "Auto-fix (Vercel): upsert Supabase env vars + redeploy (best-effort)"
+        if: ${{ steps.basecands.outputs.has_candidates == 'true' && env.INPUT_ATTEMPT_VERCEL_ENV_SYNC == 'true' && steps.envhealth.outputs.has_env != 'true' && secrets.VERCEL_TOKEN != '' && (vars.VERCEL_PROJECT_ID != '' || vars.VERCEL_PROJECT != '') }}
         env:
           BASE_URL: ${{ steps.baseurl.outputs.base_url }}
           # Vercel auth / scope
@@ -232,8 +365,8 @@ jobs:
           # Persist the final post-redeploy env-health JSON to the workflow artifacts.
           curl -sS -m 12 "$BASE_URL/api/workflow/env-health" > preflight/env-health.after-redeploy.json
 
-      - name: Auto-fix (Cloudflare Pages): upsert Supabase env vars (+ optional deploy hook) (best-effort)
-        if: ${{ inputs.attempt_cloudflare_pages_env_sync && steps.envhealth.outputs.has_env != 'true' && contains(steps.baseurl.outputs.base_url, 'pages.dev') && secrets.CLOUDFLARE_API_TOKEN != '' && vars.CLOUDFLARE_ACCOUNT_ID != '' && vars.CF_PAGES_PROJECT != '' }}
+      - name: "Auto-fix (Cloudflare Pages): upsert Supabase env vars (+ optional deploy hook) (best-effort)"
+        if: ${{ steps.basecands.outputs.has_candidates == 'true' && env.INPUT_ATTEMPT_CLOUDFLARE_PAGES_ENV_SYNC == 'true' && steps.envhealth.outputs.has_env != 'true' && contains(steps.baseurl.outputs.base_url, 'pages.dev') && secrets.CLOUDFLARE_API_TOKEN != '' && vars.CLOUDFLARE_ACCOUNT_ID != '' && vars.CF_PAGES_PROJECT != '' }}
         env:
           BASE_URL: ${{ steps.baseurl.outputs.base_url }}
           # Cloudflare Pages auth / scope
@@ -260,7 +393,8 @@ jobs:
           # Persist the final env-health JSON to the workflow artifacts (may still be missing until manual redeploy).
           curl -sS -m 12 "$BASE_URL/api/workflow/env-health" > preflight/env-health.after-redeploy.json || true
 
-      - name: Preflight: env-health (enforce)
+      - name: "Preflight: env-health (enforce)"
+        if: ${{ steps.basecands.outputs.has_candidates == 'true' }}
         env:
           BASE_URL: ${{ steps.baseurl.outputs.base_url }}
         run: |
@@ -285,8 +419,8 @@ jobs:
             exit 2
           fi
 
-      - name: Preflight: supabase-health (env + schema + seed) (only when skip_sql_apply=true)
-        if: ${{ inputs.skip_sql_apply }}
+      - name: "Preflight: supabase-health (env + schema + seed) (only when skip_sql_apply=true)"
+        if: ${{ steps.basecands.outputs.has_candidates == 'true' && env.INPUT_SKIP_SQL_APPLY == 'true' }}
         env:
           BASE_URL: ${{ steps.baseurl.outputs.base_url }}
         run: |
@@ -323,20 +457,97 @@ jobs:
             preflight/base-url-source.txt
             preflight/base-url-probe.txt
             preflight/select-base-url.err
+            preflight/input-base-url-candidates.raw.txt
+            preflight/input-base-url-candidates.formatted.txt
+            preflight/github-api.actions-variables.patch.json
+            preflight/github-api.actions-variables.post.json
+            preflight/github-api.actions-variables.autorun.patch.json
+            preflight/github-api.actions-variables.autorun.post.json
             preflight/env-health.json
             preflight/env-health.after-redeploy.json
             preflight/supabase-health.json
 
+      - name: Enable scheduled autorun gate after green preflight (optional; workflow_dispatch only)
+        if: ${{ github.event_name == 'workflow_dispatch' && steps.basecands.outputs.has_candidates == 'true' && env.INPUT_PREFLIGHT_ONLY == 'true' && env.INPUT_ENABLE_AUTORUN_AFTER_PREFLIGHT == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p preflight
+
+          var_name="CYCLE_005_AUTORUN_ENABLED"
+          payload="$(jq -nc --arg name "$var_name" --arg value "true" '{name:$name,value:$value}')"
+
+          update_url="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/variables/${var_name}"
+          create_url="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/variables"
+
+          code="$(
+            curl -sS -o preflight/github-api.actions-variables.autorun.patch.json -w "%{http_code}" \
+              -X PATCH \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$update_url" \
+              -d "$payload" || echo "000"
+          )"
+
+          if [ "$code" = "404" ]; then
+            code="$(
+              curl -sS -o preflight/github-api.actions-variables.autorun.post.json -w "%{http_code}" \
+                -X POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "$create_url" \
+                -d "$payload" || echo "000"
+            )"
+          fi
+
+          if [ "$code" != "201" ] && [ "$code" != "204" ]; then
+            echo "Failed to upsert repo variable ${var_name}=true (HTTP $code)." >&2
+            echo "Fallback: set it manually via Settings -> Secrets and variables -> Actions -> Variables." >&2
+            exit 2
+          fi
+
+          {
+            echo ""
+            echo "- schedule_gate_enabled: \`${var_name}=true\`"
+            echo "- schedule: enabled (workflow cron will refresh evidence every 6 hours)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop after preflight (preflight_only=true)
+        if: ${{ steps.basecands.outputs.has_candidates == 'true' && env.INPUT_PREFLIGHT_ONLY == 'true' }}
+        run: |
+          set -euo pipefail
+          {
+            echo ""
+            echo "- preflight_only: \`true\` (skipping intake + evidence + PR)"
+            echo "- next_step: re-run with \`preflight_only=false\` to generate the evidence PR"
+            if [ "${GITHUB_EVENT_NAME:-}" = "workflow_dispatch" ]; then
+              if [ "${INPUT_ENABLE_AUTORUN_AFTER_PREFLIGHT:-false}" = "true" ]; then
+                echo "- enable_autorun_after_preflight: \`true\` (attempted to set repo variable CYCLE_005_AUTORUN_ENABLED=true)"
+              else
+                echo "- next_step: if this preflight is green, enable scheduled refresh by setting repo variable \`CYCLE_005_AUTORUN_ENABLED=true\`"
+                echo "  - \`gh variable set CYCLE_005_AUTORUN_ENABLED -R ${GITHUB_REPOSITORY} --body true\`"
+              fi
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Preflight-only run requested; stopping before evidence execution."
+          exit 0
+
       - name: Setup Node
+        if: ${{ steps.basecands.outputs.has_candidates == 'true' }}
         uses: actions/setup-node@v4
         with:
           node-version-file: "projects/security-questionnaire-autopilot/.nvmrc"
           cache: "npm"
           cache-dependency-path: "projects/security-questionnaire-autopilot/package-lock.json"
 
-      - name: Preflight: verify SQL bundle is internally consistent (drift guard)
+      - name: "Preflight: verify SQL bundle is internally consistent (drift guard)"
         env:
-          SQL_BUNDLE: ${{ inputs.sql_bundle }}
+          SQL_BUNDLE: ${{ env.INPUT_SQL_BUNDLE }}
+        if: ${{ steps.basecands.outputs.has_candidates == 'true' }}
         run: |
           set -euo pipefail
 
@@ -346,16 +557,18 @@ jobs:
           node scripts/verify-dashboard-sql-bundle.mjs --bundle "${GITHUB_WORKSPACE}/${SQL_BUNDLE}" >/dev/null
 
       - name: Install deps (hosted app)
+        if: ${{ steps.basecands.outputs.has_candidates == 'true' }}
         working-directory: projects/security-questionnaire-autopilot
         run: npm ci
 
-      - name: Preflight: required secrets (clear error messages)
+      - name: "Preflight: required secrets (clear error messages)"
+        if: ${{ steps.basecands.outputs.has_candidates == 'true' }}
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SKIP_SQL_APPLY: ${{ inputs.skip_sql_apply }}
-          REQUIRE_FALLBACK: ${{ inputs.require_fallback_supabase_secrets }}
+          SKIP_SQL_APPLY: ${{ env.INPUT_SKIP_SQL_APPLY }}
+          REQUIRE_FALLBACK: ${{ env.INPUT_REQUIRE_FALLBACK_SUPABASE_SECRETS }}
         run: |
           set -euo pipefail
           if [ "${SKIP_SQL_APPLY:-true}" != "true" ]; then
@@ -368,11 +581,12 @@ jobs:
 
       - name: Run hosted workflow + collect DB evidence (Cycle 005 wrapper)
         id: wrapper
+        if: ${{ steps.basecands.outputs.has_candidates == 'true' }}
         env:
           BASE_URL: ${{ steps.baseurl.outputs.base_url }}
-          INPUT_RUN_ID: ${{ inputs.run_id }}
-          SKIP_SQL_APPLY: ${{ inputs.skip_sql_apply }}
-          SQL_BUNDLE: ${{ inputs.sql_bundle }}
+          INPUT_RUN_ID: ${{ env.INPUT_RUN_ID }}
+          SKIP_SQL_APPLY: ${{ env.INPUT_SKIP_SQL_APPLY }}
+          SQL_BUNDLE: ${{ env.INPUT_SQL_BUNDLE }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -402,7 +616,8 @@ jobs:
             echo "- run_id: \`$RUN_ID\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Post-run smoke: runtime + db-evidence (fail-fast)
+      - name: "Post-run smoke: runtime + db-evidence (fail-fast)"
+        if: ${{ steps.basecands.outputs.has_candidates == 'true' }}
         env:
           BASE_URL: ${{ steps.baseurl.outputs.base_url }}
           RUN_ID: ${{ steps.wrapper.outputs.run_id }}
@@ -415,6 +630,7 @@ jobs:
           jq -e '.ok == true' preflight/postrun/smoke-summary.json >/dev/null
 
       - name: Verify evidence was appended to sales ledger
+        if: ${{ steps.basecands.outputs.has_candidates == 'true' }}
         env:
           RUN_ID: ${{ steps.wrapper.outputs.run_id }}
           SALES_DOC: docs/sales/cycle-003-hosted-workflow-pilot-001-execution.md
@@ -452,12 +668,13 @@ jobs:
             docs/sales/cycle-003-hosted-workflow-pilot-001-execution.md
 
       - name: Create PR with appended evidence entry
-        if: success()
+        if: ${{ steps.basecands.outputs.has_candidates == 'true' && success() }}
         uses: peter-evans/create-pull-request@v6
         with:
           title: "Cycle 005: hosted Supabase persistence evidence"
           commit-message: "Cycle 005: append hosted Supabase persistence evidence"
-          branch: "cycle-005-hosted-persistence-evidence-${{ github.run_id }}"
+          # Reuse one PR branch to avoid creating a new PR on every scheduled run.
+          branch: "cycle-005-hosted-persistence-evidence"
           delete-branch: true
           add-paths: |
             docs/qa/cycle-005-*.json

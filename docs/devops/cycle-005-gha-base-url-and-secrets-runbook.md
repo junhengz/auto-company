@@ -118,9 +118,10 @@ export VERCEL_PROJECT="security-questionnaire-autopilot"
 # export VERCEL_TEAM_ID="..."
 # export VERCEL_TEAM_SLUG="..."
 
-./scripts/cycle-005/run-hosted-persistence-evidence.sh \
+./scripts/devops/run-cycle-005-hosted-persistence-evidence.sh \
   --autodiscover-hosting \
-  --set-variable \
+  --persist-candidates \
+  --preflight-only \
   --skip-sql-apply true
 ```
 
@@ -147,10 +148,28 @@ Pass criteria: `ok=true` (and for Cycle 005 evidence, both `env.*` booleans are 
 
 Use multiple candidates if you are unsure which domain is the real Next.js runtime; the workflow probes `/api/workflow/env-health` and rejects marketing/static sites.
 
-Recommended: use the operator runner (does best-effort local BASE_URL selection + dispatch + watch; the workflow itself runs the smoke checks and uploads artifacts):
+Recommended: run a preflight-only dispatch first (base URL selection + env-health + supabase-health), then run evidence:
 
 ```bash
-./scripts/cycle-005/run-hosted-persistence-evidence.sh \
+./scripts/devops/run-cycle-005-hosted-persistence-evidence.sh \
+  --candidates-file docs/devops/base-url-candidates.template.txt \
+  --preflight-only \
+  --skip-sql-apply true
+```
+
+Optional: enable scheduled refresh after a green preflight:
+
+```bash
+./scripts/devops/run-cycle-005-hosted-persistence-evidence.sh \
+  --candidates-file docs/devops/base-url-candidates.template.txt \
+  --enable-autorun-after-preflight \
+  --skip-sql-apply true
+```
+
+Evidence run (creates PR):
+
+```bash
+./scripts/devops/run-cycle-005-hosted-persistence-evidence.sh \
   --candidates-file docs/devops/base-url-candidates.template.txt \
   --skip-sql-apply true
 ```
@@ -163,6 +182,8 @@ REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner)"
 gh workflow run cycle-005-hosted-persistence-evidence.yml -R "$REPO" \
   -f base_url="" \
   -f base_url_candidates="" \
+  -f preflight_only=false \
+  -f enable_autorun_after_preflight=false \
   -f run_id="" \
   -f skip_sql_apply=true \
   -f attempt_vercel_env_sync=true \

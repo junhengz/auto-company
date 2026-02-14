@@ -21,12 +21,22 @@ https://<custom-domain>
    - Leave `base_url` blank (it will use the repo variable)
    - Leave `run_id` blank (workflow will generate one)
    - Keep `skip_sql_apply=true` unless you explicitly want Actions to apply the SQL bundle using `SUPABASE_DB_URL`
+   - Note: `preflight_only` defaults to `true` for manual dispatch. Set `preflight_only=false` to generate the evidence PR.
 
 CLI path (recommended, does best-effort local BASE_URL selection + dispatch + watch; the workflow itself runs the smoke checks and uploads artifacts):
 
 ```bash
-./scripts/cycle-005/run-hosted-persistence-evidence.sh \
+./scripts/devops/run-cycle-005-hosted-persistence-evidence.sh \
   --candidates-file docs/devops/base-url-candidates.template.txt \
+  --skip-sql-apply true
+```
+
+Preflight-only (recommended before the first evidence run):
+
+```bash
+./scripts/devops/run-cycle-005-hosted-persistence-evidence.sh \
+  --candidates-file docs/devops/base-url-candidates.template.txt \
+  --preflight-only \
   --skip-sql-apply true
 ```
 

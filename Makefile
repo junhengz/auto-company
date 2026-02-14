@@ -1,4 +1,4 @@
-.PHONY: start start-awake awake stop status last cycles monitor pause resume install uninstall team cycle-005-evidence cycle-005-env-sync help
+.PHONY: start start-awake awake stop status last cycles monitor pause resume install uninstall team cycle-005-evidence cycle-005-preflight cycle-005-preflight-enable-autorun cycle-005-env-sync help
 
 # === Quick Start ===
 
@@ -69,6 +69,12 @@ team: ## Start interactive Codex session
 
 cycle-005-evidence: ## Trigger Cycle 005 hosted persistence evidence workflow (requires gh auth + repo vars/secrets)
 	./scripts/devops/run-cycle-005-hosted-persistence-evidence.sh
+
+cycle-005-preflight: ## Trigger Cycle 005 hosted preflight-only run (no evidence + no PR)
+	./scripts/devops/run-cycle-005-hosted-persistence-evidence.sh --preflight-only
+
+cycle-005-preflight-enable-autorun: ## Run preflight-only; if green, enable scheduled runs via CYCLE_005_AUTORUN_ENABLED=true
+	./scripts/devops/run-cycle-005-hosted-persistence-evidence.sh --enable-autorun-after-preflight
 
 cycle-005-env-sync: ## Sync hosted runtime env vars (Supabase) via provider API + redeploy (requires gh write perms + repo vars/secrets)
 	./scripts/devops/run-cycle-005-hosted-runtime-env-sync.sh

@@ -140,12 +140,12 @@ for raw in "$@"; do
     continue
   fi
 
-	  if [ "${ALLOW_MISSING_SUPABASE_ENV:-}" != "1" ] && [ "${ALLOW_MISSING_SUPABASE_ENV:-}" != "true" ]; then
-	    if ! jq -e '.env.NEXT_PUBLIC_SUPABASE_URL == true and .env.SUPABASE_SERVICE_ROLE_KEY == true' "$out" >/dev/null 2>&1; then
-	      fail_reasons+=("$base -> hosted runtime reachable but missing Supabase env vars (set NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY on hosting provider, then redeploy)")
-	      continue
-	    fi
-	  fi
+  if [ "${ALLOW_MISSING_SUPABASE_ENV:-}" != "1" ] && [ "${ALLOW_MISSING_SUPABASE_ENV:-}" != "true" ]; then
+    if ! jq -e '.env.NEXT_PUBLIC_SUPABASE_URL == true and .env.SUPABASE_SERVICE_ROLE_KEY == true' "$out" >/dev/null 2>&1; then
+      fail_reasons+=("$base -> hosted runtime reachable but missing Supabase env vars (set NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY on hosting provider, then redeploy)")
+      continue
+    fi
+  fi
 
   # Success: print chosen base url.
   printf '%s\n' "$base"

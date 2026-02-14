@@ -13,7 +13,7 @@ by making BASE_URL selection, secrets preflight, and runtime smoke checks determ
 ## What Changed (Shipped)
 
 1. Single-command operator runner (local)
-   - `scripts/cycle-005/run-hosted-persistence-evidence.sh`
+   - `scripts/devops/run-cycle-005-hosted-persistence-evidence.sh`
    - Responsibilities:
      - deterministically select the correct deployed Next.js runtime `BASE_URL` (probes `/api/workflow/env-health`)
      - dispatch the workflow via `gh` and optionally watch it to completion
@@ -40,7 +40,7 @@ by making BASE_URL selection, secrets preflight, and runtime smoke checks determ
 2. Run:
 
 ```bash
-./scripts/cycle-005/run-hosted-persistence-evidence.sh \
+./scripts/devops/run-cycle-005-hosted-persistence-evidence.sh \
   --candidates-file docs/devops/base-url-candidates.template.txt \
   --skip-sql-apply true
 ```

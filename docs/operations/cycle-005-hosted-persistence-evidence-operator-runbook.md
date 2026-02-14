@@ -91,6 +91,7 @@ Recommended inputs:
 
 - `base_url`: leave empty if you set repo variable `HOSTED_WORKFLOW_BASE_URL_CANDIDATES` (recommended)
 - `skip_sql_apply`: `true` (preferred path is applying SQL via Supabase Dashboard SQL Editor first)
+- `preflight_only`: defaults to `true` for manual dispatch; set `preflight_only=false` to create/update the evidence PR
 
 Pass criteria:
 
@@ -106,6 +107,17 @@ CLI path (recommended, does preflight + watch):
   --skip-sql-apply true
 ```
 
+Preflight-only (BASE_URL selection + env checks only; no evidence + no PR):
+
+```bash
+./scripts/devops/run-cycle-005-hosted-persistence-evidence.sh --repo OWNER/REPO \
+  --candidates-file docs/devops/base-url-candidates.template.txt \
+  --preflight-only
+```
+
 Optional hardening (recommended if you want fail-fast fallback behavior):
 
 - Add `--require-fallback-secrets` (enforces GitHub secrets `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` exist).
+
+If you want scheduled evidence refresh runs:
+- Set repo variable `CYCLE_005_AUTORUN_ENABLED=true` after the first successful manual run.

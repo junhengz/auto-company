@@ -3,7 +3,7 @@
 Date: 2026-02-13
 Role: qa-bach
 
-Goal: make `./scripts/cycle-005/run-hosted-persistence-evidence.sh` fail fast with actionable fixes when `BASE_URL` or hosted Supabase env vars are missing.
+Goal: make `./scripts/devops/run-cycle-005-hosted-persistence-evidence.sh` (and the corresponding GitHub Actions workflow) fail fast with actionable fixes when `BASE_URL` or hosted Supabase env vars are missing.
 
 ## What "BASE_URL" Must Be
 
@@ -32,13 +32,23 @@ gh variable set HOSTED_WORKFLOW_BASE_URL_CANDIDATES -R OWNER/REPO --body "https:
 2) Run the evidence runner:
 
 ```bash
-./scripts/cycle-005/run-hosted-persistence-evidence.sh --repo OWNER/REPO
+./scripts/devops/run-cycle-005-hosted-persistence-evidence.sh --repo OWNER/REPO
+```
+
+Recommended: run a preflight-only dispatch first (no evidence, no PR):
+```bash
+make cycle-005-preflight
+```
+
+After a green preflight, enable scheduled refresh (prevents manual babysitting):
+```bash
+make cycle-005-preflight-enable-autorun
 ```
 
 If you do not want to persist candidates into the repo variable, pass them for a single run:
 
 ```bash
-./scripts/cycle-005/run-hosted-persistence-evidence.sh --repo OWNER/REPO --base-url "https://candidate1 https://candidate2"
+./scripts/devops/run-cycle-005-hosted-persistence-evidence.sh --repo OWNER/REPO --base-url "https://candidate1 https://candidate2"
 ```
 
 ## Where BASE_URL Usually Comes From
@@ -67,10 +77,6 @@ Where to set them (hosted runtime, then redeploy):
 
 Optional automation (Vercel only):
 - The GitHub Actions workflow can attempt to upsert these env vars into Vercel + redeploy when `attempt_vercel_env_sync=true`.
-- See: `docs/devops/cycle-005-vercel-env-sync-and-redeploy.md`
-
-Optional automation (Vercel):
-- The GitHub Actions workflow can best-effort upsert these env vars on Vercel and redeploy when configured.
 - See: `docs/devops/cycle-005-vercel-env-sync-and-redeploy.md`
 
 ### GitHub Actions: What It Is (and Is Not)

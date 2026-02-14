@@ -25,6 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      deployments: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,6 +45,8 @@ jobs:
           BASE_URL: ${{ inputs.base_url }}
           POLL_TIMEOUT_SECONDS: ${{ inputs.poll_timeout_seconds }}
           POLL_INTERVAL_SECONDS: "10"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
 
           # Supabase values to sync into hosted runtime:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -87,9 +90,15 @@ jobs:
               candidates="${WORKFLOW_APP_BASE_URL_CANDIDATES}"
             else
               candidates="$(
-                ./projects/security-questionnaire-autopilot/scripts/collect-base-url-candidates-from-hosting.sh \
+                ./projects/security-questionnaire-autopilot/scripts/collect-base-url-candidates-from-github-deployments.sh \
                   | tr '\n' ' ' | tr -s ' ' | sed 's/^ *//; s/ *$//' || true
               )"
+              if [ -z "${candidates:-}" ]; then
+                candidates="$(
+                  ./projects/security-questionnaire-autopilot/scripts/collect-base-url-candidates-from-hosting.sh \
+                    | tr '\n' ' ' | tr -s ' ' | sed 's/^ *//; s/ *$//' || true
+                )"
+              fi
             fi
 
             if [ -n "${candidates:-}" ]; then
