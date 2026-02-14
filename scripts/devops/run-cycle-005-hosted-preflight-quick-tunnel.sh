@@ -135,7 +135,8 @@ nohup cloudflared tunnel --url "http://127.0.0.1:${PORT}" --no-autoupdate >"$RUN
 BASE_URL=""
 echo "Waiting for trycloudflare URL..." >&2
 for _ in $(seq 1 240); do
-  BASE_URL="$(rg -o -m 1 'https://[a-z0-9-]+\\.trycloudflare\\.com' "$RUN_DIR/cloudflared.log" 2>/dev/null | head -n 1 || true)"
+  # Quick Tunnel hostnames may include mixed case; match broadly.
+  BASE_URL="$(sed -nE 's#.*(https://[A-Za-z0-9-]+\\.trycloudflare\\.com).*#\\1#p' "$RUN_DIR/cloudflared.log" 2>/dev/null | head -n 1 || true)"
   BASE_URL="$(printf '%s' "${BASE_URL:-}" | tr -d '\r' | head -n 1)"
   if [ -n "${BASE_URL:-}" ]; then
     break
