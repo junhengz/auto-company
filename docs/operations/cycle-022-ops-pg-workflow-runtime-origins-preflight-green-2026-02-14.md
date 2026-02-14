@@ -28,6 +28,14 @@ Dispatch from the branch that contains the `local_runtime` preflight input:
 
 Expected: workflow is green with `preflight_only=true`, and `supabase-health` is skipped (since there is no real Supabase yet).
 
+Evidence (green preflight-only run):
+- GitHub Actions run: `22011809463` (branch `qa-bach/local-runtime-preflight`)
+- `env-health.json` shows:
+  - `.ok == true`
+  - `.env.NEXT_PUBLIC_SUPABASE_URL == true`
+  - `.env.SUPABASE_SERVICE_ROLE_KEY == true`
+  - BASE_URL candidate was `http://127.0.0.1:18080` (local runtime inside the GHA runner)
+
 ### Option B: Cloudflare Quick Tunnel (Real Public Origin, Still Credential-Free)
 This creates a temporary `https://*.trycloudflare.com` origin that serves the workflow runtime, then dispatches the Cycle 005 preflight against it.
 
@@ -64,4 +72,3 @@ If you want the workflow to “self-discover” without `HOSTED_WORKFLOW_BASE_UR
 
 ## Next Action
 Deploy `projects/security-questionnaire-autopilot` to a real host (Vercel preferred), capture the production origin(s), set `HOSTED_WORKFLOW_BASE_URL_CANDIDATES`, then rerun Cycle 005 `preflight_only=true` with `preflight_require_supabase_health=true` until green.
-
