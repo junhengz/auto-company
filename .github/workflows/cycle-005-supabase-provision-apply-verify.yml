@@ -124,6 +124,39 @@ EOF
           test -f runs/supabase-verify.json || (echo "Missing runs/supabase-verify.json (apply step should create it)" >&2; exit 2)
           jq -e '.ok == true' runs/supabase-verify.json >/dev/null
 
+      - name: Write safe supabase-verify.json if missing (always)
+        if: always()
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_ORG_SLUG: ${{ secrets.SUPABASE_ORG_SLUG }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p projects/security-questionnaire-autopilot/runs
+          if [ -f projects/security-questionnaire-autopilot/runs/supabase-verify.json ]; then
+            exit 0
+          fi
+
+          python - <<'PY'
+          import datetime, json, os
+
+          required = ["SUPABASE_ACCESS_TOKEN", "SUPABASE_ORG_SLUG", "SUPABASE_DB_PASSWORD"]
+          missing = [k for k in required if not os.environ.get(k)]
+
+          data = {
+              "checked_at_utc": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+              "ok": False,
+              "reason": "workflow_failed_before_apply",
+              "missing_secrets": missing,
+              "note": "This file is a safe fallback artifact written by the workflow when earlier steps fail. Successful runs should produce ok=true from the apply verification step.",
+          }
+
+          out = "projects/security-questionnaire-autopilot/runs/supabase-verify.json"
+          with open(out, "w", encoding="utf-8") as f:
+              json.dump(data, f, indent=2, sort_keys=True)
+              f.write("\n")
+          PY
+
       - name: Job summary (safe)
         if: always()
         run: |

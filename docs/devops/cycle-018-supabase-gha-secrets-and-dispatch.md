@@ -5,6 +5,15 @@ Owner: devops-hightower
 
 Goal: remove the last manual blocker by making it copy/paste-able to (1) set required GitHub Actions secrets and (2) dispatch the shipped workflow `.github/workflows/cycle-005-supabase-provision-apply-verify.yml`, then (3) download evidence artifacts including `supabase-verify.json`.
 
+Note:
+- Canonical, evidence-producing runbook for this flow: `docs/devops/cycle-018-ci-supabase-provision-apply-secrets-dispatch-artifacts.md`
+- Canonical scripts for this flow:
+  - `scripts/devops/gha-secrets-verify.sh`
+  - `scripts/devops/gha-secrets-set.sh`
+  - `scripts/devops/gha-workflow-dispatch.sh`
+  - `scripts/devops/gha-run-fetch-artifacts.sh`
+  - `scripts/devops/run-cycle-005-supabase-provision-apply-verify.sh` (one-shot)
+
 ## Prereqs
 
 - `gh` authenticated to GitHub (`gh auth status -h github.com` must succeed)
@@ -39,7 +48,8 @@ export SUPABASE_DB_PASSWORD="***"
 
 ./scripts/devops/run-cycle-005-supabase-provision-apply-verify.sh \
   --repo "OWNER/REPO" \
-  --set-secrets \
+  --set-missing-secrets \
+  --non-interactive \
   --supabase-project-name "security-questionnaire-autopilot-cycle-005" \
   --reuse-existing true \
   --sql-bundle "projects/security-questionnaire-autopilot/supabase/bundles/20260213_cycle003_hosted_workflow_migration_plus_seed.sql"
@@ -49,23 +59,35 @@ Option B: prompt for missing values (interactive), then dispatch:
 
 ```bash
 ./scripts/devops/run-cycle-005-supabase-provision-apply-verify.sh \
-  --set-secrets \
-  --prompt-missing
+  --repo "OWNER/REPO" \
+  --set-missing-secrets
+```
+
+Option C: dispatch even if secrets are missing (to produce failure evidence artifacts)
+
+This is useful when you want the workflow to upload a safe `supabase-verify.json` describing missing secrets, without blocking locally on a preflight secrets check.
+
+```bash
+./scripts/devops/run-cycle-005-supabase-provision-apply-verify.sh \
+  --repo "OWNER/REPO" \
+  --skip-secrets-check
 ```
 
 ## Evidence Output
 
-The script writes a run directory under:
+Evidence files land under:
 
-- `docs/devops/cycle-018-supabase-gha/run-<databaseId>-<ts>/`
+- `docs/devops/evidence/`
 
 Expected files:
 
-- `run-summary.json` (non-secret)
-- `artifacts/provision.json` (sanitized)
-- `artifacts/provision.kv` (non-secret)
-- `artifacts/supabase-verify.json` (non-secret; script asserts `.ok == true`)
-- `supabase-connection-nonsecret.txt` (derived; includes `project_ref` and `NEXT_PUBLIC_SUPABASE_URL`)
+- `actions-secrets-check-*.json` (names only)
+- `actions-secrets-set-*.json` (names only)
+- `workflow-dispatch-*.json`
+- `artifact-fetch-*-run-<RUN_ID>.json`
+- `supabase-verify-run-<RUN_ID>.json` (non-secret; script asserts `.ok == true`)
+- `supabase-connection-nonsecret-run-<RUN_ID>.txt`
+- `supabase-provision-summary-run-<RUN_ID>.json`
 
 ## Next Step After Provisioning
 
